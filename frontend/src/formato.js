@@ -46,6 +46,17 @@ const dos = (n) => String(n).padStart(2, '0')
 // Date -> "2026-11-12" (en la hora local, no en UTC)
 export const aFechaISO = (d) => `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`
 
+// El día del mercado no termina a las 00:00 sino a las 00:45: a esa hora el sistema hace la caja.
+// Si se cambia, cambiarla también en backend/core/dia.py (HORA_DE_CIERRE).
+export const HORA_CIERRE = '00:45'
+const MINUTOS_CIERRE = 45
+
+// El día del mercado que está corriendo ahora (a las 00:20 del sábado todavía es viernes), sin hora
+export function hoyDelMercado() {
+  const d = new Date(Date.now() - MINUTOS_CIERRE * 60 * 1000)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
 // "2026-11-12" -> Date a las 00:00 de acá (new Date("2026-11-12") lo tomaría como UTC y daría el día anterior)
 export function deFechaISO(texto) {
   const [a, m, d] = texto.split('-').map(Number)

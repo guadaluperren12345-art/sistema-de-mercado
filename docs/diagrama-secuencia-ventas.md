@@ -269,7 +269,7 @@ La venta **no se borra**: queda guardada con quién la anuló, cuándo y el moti
 
 ## Qué pasa si el turno se cerró
 
-Un empleado o encargado solo puede vender con su turno abierto. Si el sistema lo cerró a las 00:00, o se cerró sesión en otro equipo, el próximo pedido se rechaza:
+Un empleado o encargado solo puede vender con su turno abierto. Si lo cerró un dueño, era una cuenta olvidada de un día anterior, o se cerró sesión en otro equipo, el próximo pedido se rechaza:
 
 ```mermaid
 sequenceDiagram

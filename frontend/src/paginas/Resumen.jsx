@@ -7,7 +7,7 @@ import { hoy, parametrosDe } from '../periodo'
 import { useConsulta } from '../useConsulta'
 
 // Resumen del día, la semana o el mes: lo que entró y salió, y las horas trabajadas.
-// Abajo, los cierres que el sistema hace solo cada día a las 00:00. Solo dueños.
+// Abajo, los cierres que el sistema hace solo cada día a las 00:45 (la caja del día). Solo dueños.
 
 const numero = (texto) => Number(texto)
 // Plata con signo: «−$ 1.500,00» si es negativa
@@ -330,13 +330,13 @@ export default function Resumen() {
         )}
 
         <section className="bloque">
-          <h2>Cierres automáticos de las 00:00</h2>
+          <h2>Cierres automáticos de las 00:45</h2>
           <p className="texto-suave">
-            Cada noche a las 00:00 el sistema cierra las sesiones que quedaron abiertas y guarda los totales del día,
+            Cada noche a las 00:45 el sistema hace la caja del día, guarda los totales y te manda un aviso,
             sin que nadie tenga que hacerlo.
           </p>
           {cierres.length === 0 ? (
-            <p className="texto-suave">Todavía no hay cierres: el primero se genera esta noche a las 00:00.</p>
+            <p className="texto-suave">Todavía no hay cierres: el primero se genera esta noche a las 00:45.</p>
           ) : (
             <div className="tabla-con-scroll">
               <table>

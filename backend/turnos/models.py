@@ -20,7 +20,7 @@ class Turno(models.Model):
     TIPOS_CIERRE = [
         (USUARIO, "Cerró sesión"),
         (INACTIVIDAD, "Se cerró por inactividad"),
-        (SISTEMA, "Lo cerró el sistema a las 00:00"),
+        (SISTEMA, "Quedó abierta: la cerró el sistema"),
         (ADMINISTRADOR, "Lo cerró un dueño"),
     ]
 
@@ -30,7 +30,7 @@ class Turno(models.Model):
     # Último momento en que la persona usó el sistema. Ayuda al dueño a corregir un turno que quedó abierto.
     ultima_actividad = models.DateTimeField(default=timezone.now)
     tipo_cierre = models.CharField(max_length=20, choices=TIPOS_CIERRE, blank=True, null=True)
-    # El sistema lo cerró solo a las 00:00: el dueño tiene que confirmar o corregir la hora de salida
+    # La persona se olvidó la cuenta abierta y el sistema la cerró: el dueño confirma o corrige la hora de salida
     para_revisar = models.BooleanField(default=False)
 
     # Corrección hecha por un dueño (queda registrado quién, cuándo y qué hora había antes)
@@ -66,10 +66,10 @@ class Turno(models.Model):
 
 
 class CierreDiario(models.Model):
-    """Cierre automático del día: lo genera el sistema a las 00:00, sin que nadie lo pida.
+    """Cierre automático del día (la caja): lo genera el sistema a las 00:45, sin que nadie lo pida.
 
-    Guarda la foto de los totales del día. Solo lo ven los dueños. Es de solo lectura (RNF-07).
-    Incluye el dinero de las ventas; gastos y pagos se agregan cuando existan esos módulos.
+    Guarda la foto de los totales del día del mercado (de 00:45 a 00:45). Solo lo ven los dueños,
+    que además reciben un aviso con la caja hecha. Es de solo lectura (RNF-07).
     """
 
     fecha = models.DateField(unique=True)

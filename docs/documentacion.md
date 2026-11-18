@@ -62,7 +62,7 @@ Todos los que trabajan en el mercado usarán el sistema, cada uno con **su propi
 - Control de stock **exacto** (por unidad o por kilo), calculado automáticamente con cada venta, compra o pérdida, con indicador de colores tipo semáforo y alarma en el celular.
 - Registro de ventas, con un **panel siempre visible** de lo vendido hoy, en el mes y en cualquier período.
 - Registro de compras de mercadería y de gastos.
-- **Cierre automático del día a las 00:00**: el sistema, solo, cierra las sesiones que quedaron abiertas y calcula todo lo que entró y salió (mercadería, dinero, gastos, pagos y ganancias). El resultado lo ven únicamente los dueños.
+- **Cierre automático del día a las 00:45**: el sistema, solo, hace la caja del día: calcula todo lo que entró y salió (mercadería, dinero, gastos, pagos y ganancias) y se la manda a los dueños con un aviso (dentro del sistema, por Telegram y por correo). El resultado lo ven únicamente los dueños. El día del mercado va de 00:45 a 00:45 y el sistema no le cierra la cuenta a ningún empleado: cada uno cierra la suya al irse.
 - Turnos ligados al inicio y cierre de sesión de cada empleado o encargado, con **cálculo de horas trabajadas**, que solo controlan los dueños.
 - **Registro de actividad**: todo cambio hecho en el sistema se puede consultar por día y horario, junto con quién tenía el sistema abierto en ese momento.
 - **Resumen por día, semana y mes** de lo que se vende, se repone, se compra y se pierde.
@@ -98,7 +98,7 @@ Desarrollar un sistema de gestión completo y fácil de usar, accesible desde co
     - 🔴 **Rojo:** sin stock.
 5. **Alertar faltantes:** hacer sonar una alarma leve en el celular cuando un producto se queda sin stock.
 6. **Registrar ventas y cuentas:** cargar ventas, pagos y deudas de forma rápida, con cualquier medio de pago (efectivo, débito, crédito, transferencia, QR o cuenta corriente), descontando automáticamente del stock y actualizando las cuentas.
-7. **Calcular solo el cierre de caja:** cada noche a las **00:00** el sistema hace el cierre del día sin que nadie lo pida: cierra las sesiones que quedaron abiertas y calcula el dinero (ventas, cobros, gastos, pagos y ganancias, separado por medio de pago) y la mercadería que entró y salió. Los empleados **no** hacen el cierre de caja. El resultado se muestra solo en la cuenta de los dueños, también en el celular. _(Decisión del 12/11/2026; antes el cierre era por turno y lo contaba el empleado.)_
+7. **Calcular solo el cierre de caja:** cada noche a las **00:45** el sistema hace el cierre del día sin que nadie lo pida: calcula el dinero (ventas, cobros, gastos, pagos y ganancias, separado por medio de pago) y la mercadería que entró y salió. Los empleados **no** hacen el cierre de caja. El resultado se muestra solo en la cuenta de los dueños, también en el celular. _(Decisión del 12/11/2026; antes el cierre era por turno y lo contaba el empleado.)_ _(Cambio del 18/11/2026: el cierre pasó de las 00:00 a las 00:45, ya no corta las cuentas de los empleados —cada uno cierra la suya— y les llega a los dueños como aviso; ver 4.16.)_
 8. **Controlar usuarios y turnos:** cada empleado o encargado **inicia su turno al iniciar sesión** con su propia contraseña, y lo **termina al cerrar sesión**. Todo lo que pasa en ese tiempo (ventas, movimientos de stock, dinero) queda a nombre de esa persona, con fecha y hora. Así se puede saber quién era responsable ante cualquier error o faltante.
 9. **Supervisar desde el celular:** que los dueños vean desde su teléfono la actividad, los turnos, el stock y las cuentas.
 10. **Gestionar precios:** modificar el precio de un producto, o aplicar un ajuste porcentual a toda una categoría. Por ejemplo: aumentar un 5% todos los productos de pollo. Pueden hacerlo los administradores en cualquier momento y los encargados durante su turno, desde la computadora o el celular. Cada cambio queda registrado en la auditoría.
@@ -203,7 +203,8 @@ Los requerimientos se organizan por módulo. El primer módulo es el de **acceso
 | Modificar precios (individual y por categoría) | ✅ | ✅ solo en su turno | ❌ |
 | Ver reportes del día | ✅ | ✅ | ❌ |
 | Enviar mensajes al administrador | — | ✅ | ❌ |
-| Ver el cierre automático del día (00:00) | ✅ | ❌ | ❌ |
+| Ver el cierre automático del día (00:45) | ✅ | ❌ | ❌ |
+| Recibir y ver los avisos con la caja del día, y configurar Telegram y correo | ✅ | ❌ | ❌ |
 | Ver todos los reportes e historial | ✅ | ❌ | ❌ |
 | Crear, editar y desactivar usuarios | ✅ | ❌ | ❌ |
 | Ver la auditoría completa | ✅ | ❌ | ❌ |
@@ -227,14 +228,14 @@ _(A confirmar: si el empleado también puede enviar mensajes al administrador o 
 | ID | Requerimiento | Prioridad |
 | --- | --- | --- |
 | RF-21 | Cuando un empleado o encargado **inicia sesión**, el sistema **abre su turno** y guarda la fecha y hora de inicio. | Alta |
-| RF-22 | _(Eliminado el 12/11/2026: los empleados no cuentan la caja; el cierre lo hace el sistema a las 00:00, ver 4.11.)_ | — |
+| RF-22 | _(Eliminado el 12/11/2026: los empleados no cuentan la caja; el cierre lo hace el sistema a las 00:45, ver 4.11.)_ | — |
 | RF-23 | Cuando el usuario **cierra sesión**, el sistema **cierra su turno** y guarda la fecha y hora de fin. El tiempo entre que puso su contraseña y que cerró sesión es su horario de trabajo. | Alta |
 | RF-24 | Todas las operaciones (ventas, cobros, gastos, movimientos de stock, cambios de precio) quedan asociadas al **turno y al usuario** que las hizo. | Alta |
 | RF-25 | El sistema calcula automáticamente las **horas trabajadas** de cada turno (fin − inicio). | Alta |
 | RF-26 | **Solo los dueños** pueden ver las horas trabajadas por persona, por día, semana y mes. | Alta |
-| RF-27 | Si alguien se va sin cerrar sesión, **a las 00:00 el sistema le cierra el turno** y lo marca «para revisar». El dueño ve el aviso y puede confirmar o **corregir la hora real de salida**; queda guardado quién lo corrigió, cuándo y la hora que había antes. Como ayuda, el sistema muestra el último momento en que esa persona lo usó. | Alta |
+| RF-27 | El sistema **no le cierra la cuenta a nadie** a ninguna hora: cada persona cierra la suya al irse (RF-59). Si alguien **se la olvidó abierta** (es de un día anterior y hace más de una hora que no la usa), cuando esa persona vuelve a entrar el sistema se la cierra **en el último momento en que la usó** y la marca «para revisar». El dueño ve el aviso y puede confirmar o **corregir la hora real de salida**; queda guardado quién lo corrigió, cuándo y la hora que había antes. Mientras tanto el dueño la ve en «Trabajando ahora» y la puede cerrar él, y el aviso de la caja del día nombra a quienes siguen con la cuenta abierta. _(Hasta el 18/11/2026 el sistema cerraba todos los turnos a las 00:00.)_ | Alta |
 | RF-28 | El administrador puede ver en todo momento quién tiene un turno abierto, y cerrarlo si hace falta. | Media |
-| RF-59 | A las **00:00 se cortan las sesiones** de empleados y encargados: quien siga trabajando tiene que volver a entrar con su contraseña y empieza un turno nuevo. | Alta |
+| RF-59 | Las sesiones de empleados y encargados **ya no se cortan a ninguna hora**: quien sigue trabajando pasada la medianoche sigue con su misma cuenta y su mismo turno hasta que la cierra. _(Cambio del 18/11/2026; antes se cortaban a las 00:00.)_ | Alta |
 
 Cómo termina un turno:
 
@@ -242,7 +243,7 @@ Cómo termina un turno:
 | --- | --- |
 | La persona cierra sesión | El turno termina en ese momento |
 | 30 minutos sin usar el sistema (RF-06) | La pantalla cierra la sesión sola y el turno termina ahí; queda marcado «se cerró por inactividad» |
-| Cerró el navegador o se apagó el equipo | El turno queda abierto hasta las 00:00, cuando lo cierra el sistema (RF-27) |
+| Cerró el navegador o se apagó el equipo | El turno queda abierto hasta que la persona vuelve a entrar o un dueño lo cierra (RF-27) |
 | Un dueño lo cierra o da de baja al usuario | El turno termina y a esa persona se le corta la sesión |
 
 Los **dueños no llevan turno**: su ingreso queda en el registro de accesos, pero no cuenta como horario de trabajo.
@@ -342,7 +343,7 @@ Etapa 9, hecha el 13/11/2026. La cuenta corriente es de **clientes**: compran, s
 | RF-101 | **Cualquier cajero cobra un pago** de la deuda, total o parcial, en efectivo, débito, crédito, transferencia o QR. Queda a su nombre y se puede imprimir un **comprobante** con lo que pagó y lo que sigue debiendo. No se puede cobrar más de lo que debe. _(Decisión del 13/11/2026.)_ | Alta |
 | RF-102 | De cada cliente se ve **su cuenta**: todos los movimientos, del más nuevo al más viejo, con el recibo de cada compra y quién lo cargó. | Alta |
 | RF-103 | Los dueños pueden **ajustar la cuenta a mano** (sumar o restar deuda) con un motivo obligatorio: sirve para cargar lo que ya debía en el cuaderno o corregir un error. | Media |
-| RF-104 | El resumen y el cierre de las 00:00 separan lo **vendido fiado** (no entró plata) de los **pagos de cuentas corrientes** (plata que entró, con su parte en efectivo). | Alta |
+| RF-104 | El resumen y el cierre de las 00:45 separan lo **vendido fiado** (no entró plata) de los **pagos de cuentas corrientes** (plata que entró, con su parte en efectivo). | Alta |
 | RF-105 | Altas, bajas, correcciones, cambios de límite, pagos y ajustes aparecen en la **Actividad del sistema** (grupo «Cuentas corrientes»). | Alta |
 
 Reglas: no puede haber dos clientes con el mismo nombre ni con el mismo DNI (RN-24). A un cliente dado de baja no se le fía, pero su deuda sigue y se puede cobrar (RN-25). Si se anula o se modifica una venta fiada, su importe sale de la deuda; si eso deja la cuenta en negativo, el cliente queda con saldo a favor (RN-26). La deuda no se paga con «cuenta corriente» (RN-27). El límite de fiado lo fijan solo los dueños, aunque el encargado esté autorizado a cargar clientes (RN-28).
@@ -357,7 +358,7 @@ Etapa 8 (parte de gastos), hecha el 13/11/2026. _(Decisión del 13/11/2026: los 
 | RF-107 | Los gastos se ven como una **lista del día**, del más nuevo al más viejo, con el **total** al pie en negativo. Todos ven la lista de hoy; dueños y encargados pueden mirar también otros días. | Alta |
 | RF-108 | Un gasto no se borra: si se anotó mal, se **anula** (con motivo opcional) y queda tachado en la lista, sin restar. Lo anula quien lo anotó, ese mismo día, o un encargado o dueño. | Alta |
 | RF-109 | **Cuenta final del día:** plata que entró (ventas cobradas, sin lo fiado, más los pagos de cuentas corrientes) **menos los gastos**. Se muestra arriba de todo en «Resumen y cierre del día», por día, semana o mes. Puede dar negativo. | Alta |
-| RF-110 | El **cierre automático de las 00:00** guarda la cantidad y el total de gastos del día, y con eso la cuenta final y el **efectivo que debería haber en la caja** (ventas y pagos en efectivo menos los gastos). | Alta |
+| RF-110 | El **cierre automático de las 00:45** guarda la cantidad y el total de gastos del día, y con eso la cuenta final y el **efectivo que debería haber en la caja** (ventas y pagos en efectivo menos los gastos). | Alta |
 | RF-111 | Cada gasto y cada anulación aparecen en la **Actividad del sistema** (grupo «Gastos») y cuentan en los cambios del día. | Alta |
 
 Reglas: el monto tiene que ser mayor a 0 y el propósito es obligatorio (RN-29). Se asume que los gastos se pagan con la plata de la caja, por eso bajan el efectivo esperado (RN-30). Un gasto anulado no se puede volver a activar: se anota de nuevo (RN-31).
@@ -374,7 +375,7 @@ Etapa 7, hecha el 13/11/2026. Reemplaza y detalla a RF-45.
 | RF-115 | Cada compra muestra **cómo va el pago** con un color: **verde** si está pagada completa, **amarillo** si se pagó una parte y falta el resto, **rojo** si todavía no se pagó. Al anotarla se elige una de las tres. _(Decisión del 13/11/2026.)_ | Alta |
 | RF-116 | Después se pueden **anotar pagos** al comerciante (el total que falta o una parte), con el medio de pago. La compra pasa sola de rojo a amarillo y a verde. No se puede pagar más de lo que falta. | Alta |
 | RF-117 | La pantalla muestra **cuánto se les debe** a los comerciantes en total y a cada uno, y permite filtrar por color y por comerciante. | Alta |
-| RF-118 | Lo **pagado a comerciantes** se resta en la **cuenta final del día** y en el cierre de las 00:00, el día en que se pagó; lo pagado en efectivo baja además el efectivo que debería haber en la caja. | Alta |
+| RF-118 | Lo **pagado a comerciantes** se resta en la **cuenta final del día** y en el cierre de las 00:45, el día en que se pagó; lo pagado en efectivo baja además el efectivo que debería haber en la caja. | Alta |
 | RF-119 | Una compra mal anotada se **anula** con motivo obligatorio: queda tachada en la lista, deja de contar en la deuda y, si había sumado stock, se lo vuelve a restar. Compras, pagos y anulaciones aparecen en la Actividad (grupo «Compras a comerciantes»). | Alta |
 
 | RF-120 | La cantidad comprada se puede anotar **por caja, cajón, bandeja, bolsa, pack o bulto**, además de por kilo o por unidad, igual que en Stock: se escribe cuántos se compraron y cuánto trae cada uno (puede ser aproximado; si el producto ya lo tiene cargado en «Llega en», se propone solo) y el sistema calcula el total que suma al stock. La lista muestra «2 cajones × 18 kg = 36 kg» y lo que salió cada cajón. _(Pedido del 13/11/2026: «se compra un cajón de cebolla, no se puede andar contando cebolla por cebolla».)_ | Alta |
@@ -383,13 +384,35 @@ Etapa 7, hecha el 13/11/2026. Reemplaza y detalla a RF-45.
 
 Reglas: el producto tiene que estar a la venta; si todavía no existe, se crea en la misma compra (RF-122) (RN-32). La cantidad y el costo deben ser mayores a 0; lo que se cuenta por unidad no admite decimales (RN-33). La compra no cambia el precio de costo ni el de venta del producto: eso se hace en Precios (RN-34).
 
+### 4.16 Avisos a los dueños: la caja del día
+
+Pedido del 18/11/2026: que el cierre automático pase de las 00:00 a las **00:45**, que el sistema ya no les cierre la cuenta a los empleados (cada uno cierra la suya) y que, apenas hace la caja, les mande **solo** una notificación a los dueños, al teléfono o a la computadora, con toda la caja del día hecha. Los dueños eligieron recibirla por los tres caminos posibles, «por si acaso».
+
+El sistema corre en la computadora del mercado, sin dirección de internet propia ni HTTPS, así que el navegador no puede mandar notificaciones push al celular. Por eso los avisos de afuera salen por Telegram y por correo.
+
+| ID | Requerimiento | Prioridad |
+| --- | --- | --- |
+| RF-123 | Apenas el sistema hace la caja del día (00:45), **le avisa a cada dueño activo** con la caja completa: resultado del día, plata que entró (ventas por medio de pago, lo vendido fiado y los pagos de cuentas corrientes), plata que salió (cada gasto con su propósito y los pagos a comerciantes), efectivo que debería haber en la caja, ventas y ganancia por sección, mercadería que ingresó y pérdidas, compras y deuda con comerciantes, horas de cada persona y quién sigue con la cuenta abierta. | Alta |
+| RF-124 | El aviso sale por **tres caminos a la vez**, por si alguno falla: dentro del sistema, por **Telegram** y por **correo**. | Alta |
+| RF-125 | **Dentro del sistema:** pantalla «Avisos» (solo dueños) con los últimos 40, marcados como nuevos hasta que se leen; el encabezado muestra cuántos hay sin leer y el inicio muestra un cartel. En la computadora, si el dueño da permiso, aparece además una notificación del navegador mientras el sistema está abierto. | Alta |
+| RF-126 | **Telegram:** un dueño carga una sola vez el *token* del bot del mercado (se crea con @BotFather); el sistema comprueba que sea válido. Cada dueño vincula **su** Telegram abriendo un enlace con un código propio y tocando «Iniciar»; puede desvincularlo cuando quiera (el código cambia). | Alta |
+| RF-127 | **Correo:** se carga una cuenta de Gmail del mercado con su «contraseña de aplicación» (desde ahí manda el sistema) y cada dueño anota el correo donde quiere recibir el aviso. | Alta |
+| RF-128 | Si a esa hora **no hay internet**, el envío queda pendiente y el sistema **lo reintenta solo** (primero al minuto, después cada vez más espaciado, hasta 30 intentos: unas 13 horas). Si no se pudo, queda como «No se pudo enviar». En cada aviso se ve cómo salió por cada camino. | Alta |
+| RF-129 | Si la computadora estaba **apagada a las 00:45**, la caja se hace y el aviso sale cuando se enciende. Si faltaban varios días, se avisan solo los últimos 3 (los demás cierres igual quedan en «Resumen y cierre del día»). | Media |
+| RF-130 | Botón **«Mandarme un aviso de prueba»**: lo manda en el momento por los tres caminos y dice cómo salió cada uno y qué falta configurar. | Media |
+| RF-131 | El token del bot y la contraseña del correo **nunca se muestran** ni se devuelven por la API después de guardarlos. Solo los dueños pueden ver y cambiar esta configuración. | Alta |
+
+Reglas: un fallo al avisar nunca impide ni demora el cierre del día (RN-35). Cada dueño ve solo sus propios avisos (RN-36). Los avisos no se borran ni se modifican (RNF-07).
+
+Hecho el 18/11/2026. Los envíos por Telegram y por correo necesitan que la computadora del mercado esté encendida y con internet.
+
 ### 4.8 Módulo de compras, gastos y caja
 
 | ID | Requerimiento | Prioridad |
 | --- | --- | --- |
 | RF-45 | Se registran las **compras** de mercadería a los comerciantes: comerciante, productos, cantidades, costo y forma de pago. La compra **suma al stock** automáticamente. | Alta |
 | RF-46 | Se registran los **gastos** del mercado (luz, alquiler, sueldos, bolsas, limpieza, etc.), con monto, categoría de gasto, y sección a la que corresponde o "general". | Alta |
-| RF-47 | El sistema calcula **solo**, a las 00:00, el dinero del día: ventas y cobros − gastos y pagos, y la ganancia. Los empleados no cuentan ni cierran la caja. | Alta |
+| RF-47 | El sistema calcula **solo**, a las 00:45, el dinero del día: ventas y cobros − gastos y pagos, y la ganancia. Los empleados no cuentan ni cierran la caja. | Alta |
 | RF-48 | El cierre de caja muestra los totales **por medio de pago** (efectivo, débito, crédito, transferencia, QR, cuenta corriente). | Alta |
 | RF-49 | _(Eliminado el 12/11/2026: ya no hay conteo de caja por turno. Consecuencia: el sistema dice cuánto dinero **debería** haber, pero no detecta solo un faltante; para eso un dueño tendría que cargar lo que contó. Queda como mejora posible.)_ | — |
 | RF-50 | Solo los dueños ven el historial de cierres del día, por fecha. Lo que hizo cada persona se consulta en la actividad (4.11). | Alta |
@@ -416,14 +439,14 @@ Hecho el 13/11/2026 (pantalla `/resultados`, solo dueños), con estas decisiones
 | RN-11 | Para calcular la ganancia se usa el **precio de costo vigente al momento de la venta**, que se guarda en cada venta. |
 | RN-12 | Todo gasto pertenece a una sección o a "general". |
 | RN-13 | Solo los administradores pueden crear usuarios (cada vez que entra un empleado nuevo). |
-| RN-18 | Un turno nunca pasa de las 00:00: a esa hora el sistema lo cierra y empieza otro día. |
+| RN-18 | El **día del mercado** va de 00:45 a 00:45: lo que se vende, se gasta, se compra o se cobra antes de las 00:45 pertenece al día anterior. Cada turno cuenta entero en el día en que empezó, aunque termine pasada la medianoche. _(Hasta el 18/11/2026 el día terminaba a las 00:00 y el sistema cerraba los turnos.)_ |
 | RN-19 | Un empleado o encargado solo puede usar el sistema mientras su turno está abierto. Si el turno se cierra, su sesión deja de servir. |
-| RN-20 | La hora de salida corregida debe ser posterior a la entrada, no puede pasar de las 00:00 de ese día ni estar en el futuro. |
+| RN-20 | La hora de salida corregida debe ser posterior a la entrada, no puede estar en el futuro, y el turno no puede durar más de 24 horas (sí puede terminar pasada la medianoche). |
 | RN-21 | Los movimientos de stock no se modifican ni se borran: un error se corrige con otro movimiento (recuento). |
 
 ### 4.11 Actividad, resumen y cierre automático del día
 
-Pedido de los dueños (12/11/2026): saber todos los días cuánto se vende, se repone y se compra; poder ver todo lo que se hizo en el sistema a cierta hora y quién lo tenía abierto; y que el sistema haga solo el cierre a las 00:00.
+Pedido de los dueños (12/11/2026): saber todos los días cuánto se vende, se repone y se compra; poder ver todo lo que se hizo en el sistema a cierta hora y quién lo tenía abierto; y que el sistema haga solo el cierre a las 00:00 (desde el 18/11/2026, a las 00:45 y con aviso a los dueños: ver 4.16).
 
 | ID | Requerimiento | Prioridad |
 | --- | --- | --- |
@@ -432,8 +455,8 @@ Pedido de los dueños (12/11/2026): saber todos los días cuánto se vende, se r
 | RF-66 | La actividad se puede filtrar por persona y por tipo (stock, productos, ingresos y salidas, horarios, usuarios). | Media |
 | RF-67 | El sistema calcula el **resumen de un día, una semana o un mes**: mercadería que entró (repuesta), pérdidas, diferencias de recuento, horas trabajadas y cantidad de cambios; en total, por sección, por producto y día por día. | Alta |
 | RF-68 | El resumen suma además lo **vendido**, lo **comprado** a comerciantes, los gastos, los pagos y la ganancia, a medida que se construyen esos módulos (etapas 5, 7 y 8). | Alta |
-| RF-69 | Cada noche a las **00:00** el sistema genera solo el **cierre del día**: cierra los turnos abiertos (RF-27) y guarda la foto de los totales. Nadie tiene que pedirlo. | Alta |
-| RF-70 | Si la computadora estaba apagada a las 00:00, el sistema **se pone al día solo** la próxima vez que se enciende o que alguien inicia sesión: genera los cierres que faltan. | Alta |
+| RF-69 | Cada noche a las **00:45** el sistema genera solo el **cierre del día**: guarda la foto de los totales del día del mercado (de 00:45 a 00:45) y les avisa a los dueños (RF-123). No cierra las cuentas de los empleados. Nadie tiene que pedirlo. | Alta |
+| RF-70 | Si la computadora estaba apagada a las 00:45, el sistema **se pone al día solo** la próxima vez que se enciende o que alguien inicia sesión: genera los cierres que faltan. | Alta |
 | RF-71 | El resumen, la actividad, los horarios y los cierres los ven **únicamente los dueños** (no los encargados), desde la computadora o el celular. | Alta |
 
 Pendiente de este módulo: el dinero del cierre (RF-47, RF-48 y RF-68) depende de ventas, compras y gastos, que todavía no existen. Hoy el cierre calcula mercadería y personal.
@@ -607,9 +630,10 @@ Notas de implementación:
 | `/stock/movimientos` | Historial de entradas y salidas con tipo, cantidad, stock resultante, valor al costo, quién y cuándo. Filtros por tipo, fechas y producto (`?producto=ID`) | Administrador, Encargado |
 | `/horarios` | «Trabajando ahora», turnos «para revisar» (con corrección de la hora de salida) y horas trabajadas por persona por día, semana o mes, con el detalle de cada ingreso | Administrador |
 | `/actividad` | Todo lo que se hizo en un día y horario, con filtros por persona y tipo, y quién tenía el sistema abierto | Administrador |
-| `/resumen` | Resumen del día, la semana o el mes (mercadería, pérdidas, recuentos, horas, cambios; por sección, producto y día) y lista de los cierres automáticos de las 00:00 | Administrador |
+| `/resumen` | Resumen del día, la semana o el mes (mercadería, pérdidas, recuentos, horas, cambios; por sección, producto y día) y lista de los cierres automáticos de las 00:45 | Administrador |
+| `/avisos` | Avisos del dueño con la caja del día (nuevos y leídos), configuración de Telegram y correo, y aviso de prueba | Administrador |
 
-La pantalla de inicio muestra avisos: productos sin stock o con poco stock (todos) y horarios para revisar (dueños). Si la sesión se corta sola (inactividad, o el turno terminó a las 00:00), la pantalla de login explica por qué.
+La pantalla de inicio muestra avisos: productos sin stock o con poco stock (todos), horarios para revisar y avisos nuevos con la caja del día (dueños). Si la sesión se corta sola (inactividad, o la cuenta quedó olvidada de un día anterior), la pantalla de login explica por qué.
 
 ### 6.6 API: secciones, categorías y productos
 
@@ -725,15 +749,20 @@ Notas de implementación:
 | --- | --- | --- | --- |
 | GET | `/api/turnos/?desde=&hasta=&usuario=` | Turnos que empezaron en el período (fechas AAAA-MM-DD; sin fechas, hoy). Cada uno trae entrada, salida, `minutos`, cómo se cerró y si fue corregido | RF-25, RF-26 |
 | GET | `/api/turnos/?estado=abiertos` | Quién está trabajando ahora | RF-28 |
-| GET | `/api/turnos/?estado=revisar` | Turnos que cerró el sistema a las 00:00 y falta revisar | RF-27 |
+| GET | `/api/turnos/?estado=revisar` | Cuentas olvidadas que cerró el sistema y falta revisar | RF-27 |
 | POST | `/api/turnos/{id}/corregir/` | Con `fin` (fecha y hora) corrige la salida o cierra un turno abierto; sin `fin` confirma la hora del sistema. `nota` opcional | RF-27, RN-20 |
 | GET | `/api/actividad/?desde=&hasta=&usuario=&grupo=` | `desde` y `hasta` son fecha y hora. Devuelve `eventos` (hasta 500) y `de_turno`. `grupo`: `ACCESO`, `USUARIOS`, `PRODUCTOS`, `STOCK` o `TURNOS` | RF-64 a RF-66 |
 | GET | `/api/resumen/?desde=&hasta=` | Totales del período (máximo 3 meses): `mercaderia`, `personal`, `cambios` y `por_dia` | RF-67 |
 | GET | `/api/cierres/` | Últimos 60 cierres automáticos del día | RF-69 |
+| GET | `/api/notificaciones/` | Mis avisos (últimos 40) y cuántos tengo sin leer; `?solo=cuenta` devuelve solo el número | RF-125 |
+| POST | `/api/notificaciones/leer/` | Marca un aviso como leído (`id`) o todos | RF-125 |
+| GET, PUT | `/api/notificaciones/configuracion/` | Estado de Telegram y correo. El PUT cambia `telegram_token`, `email_usuario`, `email_password`, `email_host`, `email_puerto` o `mi_email` (solo lo que se manda) | RF-126, RF-127, RF-131 |
+| POST | `/api/notificaciones/telegram/vincular/` y `/desvincular/` | Busca mi mensaje «/start código» en el bot y guarda mi chat; o lo olvida | RF-126 |
+| POST | `/api/notificaciones/probar/` | Me manda un aviso de prueba por los tres caminos y dice cómo salió cada uno | RF-130 |
 
 Notas de implementación:
 
-- **Planificador:** el contenedor `tareas` (mismo código que el backend, comando `python manage.py planificador`) revisa cada 20 segundos si terminó el día y llama a `cerrar_dias_pendientes()`. La misma función se ejecuta en cada inicio de sesión, por si la computadora estuvo apagada a las 00:00 (RF-70). Se puede llamar muchas veces sin duplicar nada.
+- **Planificador:** el contenedor `tareas` (mismo código que el backend, comando `python manage.py planificador`) revisa cada 20 segundos si terminó el día (00:45) y llama a `cerrar_dias_pendientes()`, que hace la caja y crea los avisos para los dueños. Después llama a `notificaciones.servicios.enviar_pendientes()`, que manda por Telegram y por correo lo que está en cola y reintenta lo que falló. La hora del cierre está en un solo lugar del backend (`core/dia.py`, `HORA_DE_CIERRE`) y en uno del frontend (`formato.js`, `HORA_CIERRE`). La misma función se ejecuta en cada inicio de sesión, por si la computadora estuvo apagada a las 00:45 (RF-70). Se puede llamar muchas veces sin duplicar nada.
 - **Sesión atada al turno:** la clase `turnos.autenticacion.AutenticacionConTurno` rechaza (401) a empleados y encargados sin turno abierto, y anota su última actividad como mucho una vez por minuto.
 - Los turnos y cierres son de solo lectura en el panel `/admin/`: las correcciones se hacen desde el sistema para que quede registrado quién las hizo.
 - Pruebas: `docker compose exec backend python manage.py test turnos` (27 pruebas). En total el backend tiene 95.
@@ -954,7 +983,7 @@ Igual que `cambio_usuario`: `id`, `producto_id`, `realizado_por_id`, `accion` (`
 | inicio | `DATETIME2` | NOT NULL | Cuándo inició sesión |
 | fin | `DATETIME2` | NULL | Cuándo terminó. NULL = turno abierto |
 | ultima_actividad | `DATETIME2` | NOT NULL | Último momento en que usó el sistema |
-| tipo_cierre | `NVARCHAR(20)` | NULL | `USUARIO`, `INACTIVIDAD`, `SISTEMA` (00:00) o `ADMINISTRADOR` |
+| tipo_cierre | `NVARCHAR(20)` | NULL | `USUARIO`, `INACTIVIDAD`, `SISTEMA` (cuenta olvidada que cerró el sistema) o `ADMINISTRADOR` |
 | para_revisar | `BIT` | NOT NULL, DEFAULT 0 | 1 = lo cerró el sistema y un dueño tiene que revisar la salida |
 | fin_original | `DATETIME2` | NULL | Hora de salida que había antes de la corrección |
 | corregido_por_id | `INT` | NULL, FK → `usuario.id` | Dueño que corrigió o confirmó |
@@ -965,7 +994,7 @@ Las horas trabajadas no se guardan: se calculan como `fin − inicio`.
 
 #### Tabla `cierre_diario`
 
-Foto de los totales de cada día, generada por el sistema a las 00:00. Solo lectura.
+Foto de los totales de cada día, generada por el sistema a las 00:45. Solo lectura.
 
 | Campo | Tipo (SQL Server) | Restricciones | Descripción |
 | --- | --- | --- | --- |
@@ -987,6 +1016,15 @@ Foto de los totales de cada día, generada por el sistema a las 00:00. Solo lect
 | ganancia_bruta | `DECIMAL(14,2)` | NOT NULL | Vendido menos el costo de esa mercadería (todavía sin gastos) |
 
 Cuando existan compras y gastos se agregan acá sus columnas (RF-47).
+
+#### Tablas de los avisos a los dueños (app `notificaciones`)
+
+| Tabla | Qué guarda |
+| --- | --- |
+| `configuracion_notificaciones` | Una sola fila: token y nombre del bot de Telegram; servidor, puerto, cuenta y contraseña de aplicación del correo; quién la cambió y cuándo |
+| `vinculo_telegram` | Uno por dueño: su código para el enlace, su `chat_id` de Telegram (vacío si no vinculó), su nombre en Telegram y cuándo vinculó |
+| `notificacion` | Un aviso para un dueño: `usuario_id`, `cierre_id` (el cierre que avisa; NULL en los de prueba), título, texto, `creada_en` y `leida_en` |
+| `envio_notificacion` | Cada envío de un aviso por Telegram o correo: canal, destino, estado (`PENDIENTE`, `ENVIADO`, `FALLIDO`), intentos, próximo intento, cuándo se envió y el último error |
 
 #### Tabla `venta`
 
@@ -1137,14 +1175,14 @@ El sistema se desarrolla **de a poco, por módulos**. Cada etapa termina con alg
 | 1 | Preparación del entorno | Git, `docker-compose.yml` con los 3 contenedores (db, backend, frontend), proyecto Django y proyecto React conectados a SQL Server | Completada (2026-11-10) |
 | 2 | Acceso | Login, usuarios (solo los dueños los crean), roles, permisos y registro de accesos | En curso — parte 1 (login) y parte 2 (alta y baja de usuarios) completadas 2026-11-10; falta editar datos y rol (RF-09), restablecer contraseña y desbloquear (RF-07, RF-11) e historial de accesos (RF-20) |
 | 3 | Secciones, productos y stock | Almacén, Carnicería y Verdulería; alta y baja de productos; stock exacto por unidad o kilo con movimientos; pérdidas; semáforo de colores | Completada — parte 1 (secciones, categorías, alta y baja de productos) el 2026-11-10; parte 2 (stock, movimientos, pérdidas, recuento, mínimo y semáforo) el 2026-11-12. La venta descontará stock en la etapa 5 |
-| 4 | Turnos, horas, actividad y cierre del día | Turno abierto al iniciar sesión y cerrado al irse; horas trabajadas solo para dueños; actividad por día y horario; resumen por día, semana y mes; cierre automático a las 00:00 | Completada 2026-11-12 en lo que no depende del dinero. El cierre suma ventas, compras y gastos cuando existan (etapas 5, 7 y 8) |
-| 5 | Ventas, recibos, lector e impresora | Venta escaneando productos, descuento automático de stock, medios de pago, vuelto, recibo imprimible, anulación, buzón de recibos con limpieza los domingos, vendido hoy, y dinero de las ventas en el resumen y en el cierre de las 00:00 | Completada 2026-11-12. Falta: gráficos (RF-44), consulta por turno y por año (RF-42, RF-43) y probar con el lector y la impresora reales |
+| 4 | Turnos, horas, actividad y cierre del día | Turno abierto al iniciar sesión y cerrado al irse; horas trabajadas solo para dueños; actividad por día y horario; resumen por día, semana y mes; cierre automático a las 00:45 | Completada 2026-11-12 en lo que no depende del dinero. El cierre suma ventas, compras y gastos cuando existan (etapas 5, 7 y 8) |
+| 5 | Ventas, recibos, lector e impresora | Venta escaneando productos, descuento automático de stock, medios de pago, vuelto, recibo imprimible, anulación, buzón de recibos con limpieza los domingos, vendido hoy, y dinero de las ventas en el resumen y en el cierre de las 00:45 | Completada 2026-11-12. Falta: gráficos (RF-44), consulta por turno y por año (RF-42, RF-43) y probar con el lector y la impresora reales |
 | 6 | Precios | Cambio de precio individual y por categoría | Completada 2026-11-13: ajuste por porcentaje a una categoría (venta, costo o los dos, con redondeo y vista previa) y cambio individual |
 | 7 | Comerciantes y compras | Proveedores, compras que suman stock, deudas y pagos | Completada 2026-11-13: lista de compras (producto, cantidad, costo, comerciante, fecha y hora), verde/amarillo/rojo según el pago, pagos posteriores, deuda por comerciante, y pagos restados en la cuenta final y el cierre |
-| 8 | Caja y gastos | Gastos por sección; dinero del día por medio de pago dentro del cierre automático de las 00:00 | Gastos completados 2026-11-13 como lista simple (monto y propósito, cualquiera anota) que se resta en la cuenta final del día y en el cierre de las 00:00. Falta: compras y pagos a comerciantes (etapa 7) |
+| 8 | Caja y gastos | Gastos por sección; dinero del día por medio de pago dentro del cierre automático de las 00:45 | Gastos completados 2026-11-13 como lista simple (monto y propósito, cualquiera anota) que se resta en la cuenta final del día y en el cierre de las 00:45. Falta: compras y pagos a comerciantes (etapa 7) |
 | 9 | Clientes y cuenta corriente | Fiado, deudas de clientes, recibos | Completada 2026-11-13: clientes, venta en cuenta corriente, límite general y por cliente, pagos con comprobante, ajustes, permiso para encargados, y fiado y cobros en el resumen y el cierre |
 | 10 | Reportes y resultados | Ventas por día, mes y año; ganancia o pérdida por sección y general; horas trabajadas; gráficos | Resultados por sección completados 2026-11-13 (con productos de cada sección y gastos en el total general). Falta: gráficos y consulta entre dos fechas libres |
-| 11 | Mensajería y notificaciones | Mensajes encargado ↔ dueño, PWA y alarma de stock en el celular | Pendiente |
+| 11 | Mensajería y notificaciones | Mensajes encargado ↔ dueño, PWA y alarma de stock en el celular | Avisos a los dueños con la caja del día completados 2026-11-18 (sistema, Telegram y correo, RF-123 a RF-131), junto con el cierre a las 00:45. Pendiente: mensajes encargado ↔ dueño, PWA y alarma de stock |
 | 12 | Facturación electrónica | Conexión con ARCA (primero en homologación) | Pendiente |
 
 ## 9. Glosario
@@ -1157,7 +1195,9 @@ El sistema se desarrolla **de a poco, por módulos**. Cada etapa termina con alg
 | Cuenta corriente | Deuda de un cliente que compra "fiado" y paga después. |
 | Auditoría | Registro automático de quién hizo cada operación y a qué hora. |
 | Categoría | Grupo de productos relacionados (ej.: pollo), usado para ajustar precios en conjunto. |
-| Cierre del día | Cálculo que el sistema hace solo a las 00:00: cierra las sesiones abiertas y guarda los totales del día (mercadería, personal y, más adelante, dinero). Solo lo ven los dueños. |
+| Cierre del día | Cálculo que el sistema hace solo a las 00:45: guarda los totales del día del mercado (mercadería, personal y dinero) y les avisa a los dueños. No cierra las cuentas de los empleados. Solo lo ven los dueños. |
+| Día del mercado | El día como lo cuenta el sistema: de 00:45 a 00:45. Una venta del sábado a las 00:20 todavía es del viernes. |
+| Aviso | Mensaje que el sistema les manda solo a los dueños con la caja del día: dentro del sistema, por Telegram y por correo. |
 | Recuento | Contar la mercadería y cargar cuánto hay en realidad, para que el sistema corrija su stock. |
 | Comerciante | Proveedor que les vende la mercadería a los dueños del mercado. |
 | Empleado | Persona que trabaja en el mercado y realiza las tareas diarias. |

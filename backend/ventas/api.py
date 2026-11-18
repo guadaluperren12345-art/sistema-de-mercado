@@ -16,6 +16,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from clientes import servicios as cuentas
+from core import dia
 from productos.api import inicio_del_dia, texto_cantidad
 from productos.models import MovimientoStock, Producto
 from usuarios.permisos import EsEncargadoOAdministrador, PasswordAlDia
@@ -44,7 +45,7 @@ def puede_corregir(usuario, venta):
         return False
     if ve_todo(usuario):
         return True
-    return venta.usuario_id == usuario.id and timezone.localtime(venta.fecha_hora).date() == timezone.localdate()
+    return venta.usuario_id == usuario.id and dia.fecha_local(venta.fecha_hora) == dia.hoy()
 
 
 # ---------- Serializers ----------
@@ -329,5 +330,5 @@ class VentasViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.G
         """RF-41: lo vendido hoy, siempre a la vista."""
         from turnos import servicios
 
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         return Response(servicios.resumen_de_ventas(*servicios.rango_de_fechas(hoy, hoy)))

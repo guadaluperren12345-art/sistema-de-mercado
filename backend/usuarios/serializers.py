@@ -15,7 +15,7 @@ class RenovarTokenSerializer(TokenRefreshSerializer):
         if TokenInvalidado.esta_invalidado(anterior):
             raise InvalidToken("La sesión fue cerrada. Inicie sesión de nuevo.")
         # Empleados y encargados solo siguen conectados mientras su turno está abierto
-        # (el sistema lo cierra a las 00:00).
+        # (lo cierra la persona al irse, o un dueño).
         from turnos import servicios
 
         usuario = Usuario.objects.select_related("rol").filter(pk=anterior.get("user_id")).first()

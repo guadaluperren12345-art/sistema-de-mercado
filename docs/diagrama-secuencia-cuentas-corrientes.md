@@ -274,4 +274,4 @@ El **ajuste a mano** de una cuenta (`POST /api/clientes/ID/ajuste/`, solo dueño
 
 ## Casos comunes
 
-El token vencido está en [`diagrama-secuencia-usuarios.md`](diagrama-secuencia-usuarios.md) y el turno cerrado en [`diagrama-secuencia-ventas.md`](diagrama-secuencia-ventas.md). Cómo entran lo fiado y los pagos en la cuenta final y en el cierre de las 00:00 está en [`diagrama-secuencia-resumen-cierre.md`](diagrama-secuencia-resumen-cierre.md).
+El token vencido está en [`diagrama-secuencia-usuarios.md`](diagrama-secuencia-usuarios.md) y el turno cerrado en [`diagrama-secuencia-ventas.md`](diagrama-secuencia-ventas.md). Cómo entran lo fiado y los pagos en la cuenta final y en el cierre de las 00:45 está en [`diagrama-secuencia-resumen-cierre.md`](diagrama-secuencia-resumen-cierre.md).

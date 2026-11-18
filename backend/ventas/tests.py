@@ -9,6 +9,8 @@ from decimal import Decimal
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core import dia
+
 from productos.models import Categoria, MovimientoStock, Producto
 from turnos import servicios
 from turnos.models import CierreDiario
@@ -156,7 +158,7 @@ class RecibosTests(Base):
 
     def test_filtro_por_fecha(self):
         self.vender()
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         self.assertEqual(len(self.client.get(f"/api/ventas/?desde={hoy}&hasta={hoy}").data), 1)
         self.assertEqual(len(self.client.get("/api/ventas/?hasta=2020-01-01").data), 0)
         self.assertEqual(self.client.get("/api/ventas/?desde=ayer").status_code, 400)

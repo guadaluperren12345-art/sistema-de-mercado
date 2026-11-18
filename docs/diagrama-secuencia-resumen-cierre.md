@@ -1,6 +1,6 @@
 # Diagramas de secuencia: resumen y cierre del día
 
-Cómo viaja un pedido entre las capas del sistema cuando un dueño **consulta el resumen** de un período o **la lista de cierres**, y cómo el sistema **hace solo el cierre del día a las 00:00**. Están hechos a partir del código real (`frontend/src/paginas/Resumen.jsx`, `frontend/src/useConsulta.js`, `frontend/src/api.js`, `backend/turnos/api.py`, `backend/turnos/servicios.py`, `backend/turnos/management/commands/planificador.py` y `backend/usuarios/views.py`).
+Cómo viaja un pedido entre las capas del sistema cuando un dueño **consulta el resumen** de un período o **la lista de cierres**, y cómo el sistema **hace solo el cierre del día a las 00:45 y les avisa a los dueños**. Están hechos a partir del código real (`frontend/src/paginas/Resumen.jsx`, `frontend/src/useConsulta.js`, `frontend/src/api.js`, `backend/turnos/api.py`, `backend/turnos/servicios.py`, `backend/turnos/management/commands/planificador.py` y `backend/usuarios/views.py`).
 
 ## Las capas
 
@@ -118,7 +118,7 @@ sequenceDiagram
 
 La diferencia entre las dos cosas: el **resumen** se calcula en el momento con los datos de ahora; el **cierre** es la foto que el sistema guardó de cada día cuando terminó.
 
-## 3. El cierre automático de las 00:00
+## 3. El cierre automático de las 00:45 y el aviso a los dueños
 
 Acá no interviene ninguna persona ni ninguna pantalla: lo dispara el planificador, un proceso que corre en su propio contenedor.
 
@@ -126,23 +126,23 @@ Acá no interviene ninguna persona ni ninguna pantalla: lo dispara el planificad
 sequenceDiagram
     participant Plan as Planificador (contenedor tareas)
     participant Servicios as Servicios de turnos
+    participant Avisos as Servicios de avisos
     participant ORM as Modelos (ORM)
     participant BD as SQL Server
+    participant Afuera as Telegram y correo
 
     loop Cada 20 segundos
         Plan->>Servicios: cerrar_dias_pendientes
         Servicios->>ORM: limpiar_buzon
         ORM->>BD: UPDATE venta, salen del buzón los recibos<br/>anteriores al domingo de la semana pasada
         Note over Servicios: El corte se mueve cada domingo.<br/>El resto de la semana no encuentra nada para sacar
-        Servicios->>BD: Busca turnos abiertos de días anteriores<br/>y la fecha del último cierre
+        Servicios->>BD: Busca la fecha del último cierre
         BD-->>Servicios: Lo que haya pendiente
 
         alt Todavía no terminó el día
             Servicios-->>Plan: Nada para hacer
-        else Pasaron las 00:00
-            Servicios->>ORM: Cerrar los turnos que quedaron abiertos
-            ORM->>BD: UPDATE turno con fin a las 00:00,<br/>cerrado por el sistema y para revisar
-            Note over Servicios: Esas personas no cerraron sesión.<br/>Su próximo pedido se rechaza y tienen que volver a entrar
+        else Pasaron las 00:45
+            Note over Servicios: No se le cierra la cuenta a nadie.<br/>Cada persona cierra la suya al irse
 
             loop Por cada día sin cerrar
                 Servicios->>Servicios: generar_cierre, calcula el resumen de ese día
@@ -151,20 +151,37 @@ sequenceDiagram
                 Servicios->>ORM: Guardar el cierre si no existe
                 ORM->>BD: INSERT en cierre_diario
             end
+            loop Por cada dueño activo
+                Servicios->>Avisos: avisar_cierre, arma el texto con toda la caja del día
+                Avisos->>BD: INSERT en notificacion, el aviso dentro del sistema,<br/>e INSERT en envio_notificacion para Telegram y para el correo
+            end
             Servicios-->>Plan: Cierres generados
             Plan->>Plan: Anota en su registro qué día cerró
+        end
+
+        Plan->>Avisos: enviar_pendientes
+        Avisos->>BD: Busca los envíos pendientes a los que ya les toca
+        alt Hay internet
+            Avisos->>Afuera: Mensaje del bot de Telegram y correo por SMTP
+            Afuera-->>Avisos: Recibido
+            Avisos->>BD: UPDATE envio_notificacion, enviado
+        else No hay internet o falló
+            Avisos->>BD: UPDATE envio_notificacion, suma un intento<br/>y lo deja para más tarde
         end
     end
 ```
 
 Puntos a tener en cuenta:
 
+- **El día del mercado va de 00:45 a 00:45.** Lo que se vende o se gasta antes de las 00:45 es del día anterior (`backend/core/dia.py`).
+- **El sistema no le cierra la cuenta a nadie.** Cada empleado cierra la suya al irse; el aviso nombra a quienes siguen con la cuenta abierta.
+- **El aviso sale por tres caminos:** dentro del sistema (pantalla «Avisos»), por Telegram y por correo. Si no hay internet, se reintenta solo durante varias horas. Un fallo al avisar nunca frena el cierre.
 - **Los empleados no hacen el cierre.** Lo hace el sistema solo y el resultado lo ven únicamente los dueños.
 - **No se duplica.** La fecha del cierre es única y se guarda solo si no existe, así que llamar a la función muchas veces no hace daño.
 - **El buzón de recibos no borra ventas.** Solo dejan de aparecer en el buzón; siguen en la base para los reportes.
 - **Qué guarda el cierre:** turnos y minutos trabajados, movimientos y valor de la mercadería, cambios registrados, ventas (total, efectivo y fiado), pagos de cuentas corrientes, gastos, compras y pagos a comerciantes, y la ganancia bruta.
 
-## 4. Si la computadora estaba apagada a las 00:00
+## 4. Si la computadora estaba apagada a las 00:45
 
 El planificador no pudo correr, así que el cierre se pone al día la próxima vez que alguien entra.
 
@@ -182,7 +199,7 @@ sequenceDiagram
     BD-->>Vista: Correcta
     Vista->>Servicios: cerrar_dias_pendientes
     Note over Servicios: Hace lo mismo que el diagrama 3,<br/>un cierre por cada día que faltaba, hasta un año atrás
-    Servicios->>BD: Cierra turnos viejos e INSERT en cierre_diario
+    Servicios->>BD: INSERT en cierre_diario y los avisos para los dueños
     Vista->>Servicios: abrir_turno
     Servicios->>BD: INSERT en turno
     Note over Servicios: Solo empleados y encargados.<br/>Los dueños no llevan turno

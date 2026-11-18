@@ -57,7 +57,7 @@ flowchart LR
     subgraph Docker["Docker Compose en una PC del mercado"]
         FE["frontend<br/>React 19 + Vite<br/>puerto 5173"]
         BE["backend<br/>Django 5.2 + DRF<br/>puerto 8000"]
-        TA["tareas<br/>planificador de las 00:00"]
+        TA["tareas<br/>planificador de las 00:45"]
         DB[("db<br/>SQL Server 2022<br/>puerto 1433")]
     end
 
@@ -84,7 +84,7 @@ flowchart LR
 - **Todo queda a nombre de alguien.** Cada operación guarda usuario, fecha, hora y, si corresponde, el turno.
 - **El stock no se escribe a mano.** Solo cambia a través de un `MovimientoStock`, dentro de una transacción que bloquea la fila del producto (`select_for_update`) para que dos cajas no se pisen.
 - **Las ventas guardan el precio y el costo del momento.** Si después cambia un precio, los recibos y las ganancias anteriores no cambian.
-- **El cierre del día lo hace el sistema solo a las 00:00**, no los empleados.
+- **El cierre del día lo hace el sistema solo a las 00:45**, no los empleados. El día del mercado va de 00:45 a 00:45 (`core/dia.py`) y el sistema no le cierra la cuenta a nadie: cada uno cierra la suya.
 - **Hora de Argentina** (`America/Argentina/Buenos_Aires`), mostrada en formato 24 h. Idioma `es-ar`.
 
 ---
@@ -97,7 +97,7 @@ Todo corre con **Docker Compose** (`docker-compose.yml`, proyecto `sistema-merca
 | --- | --- | --- | --- | --- |
 | `db` | `mercado-db` | `mcr.microsoft.com/mssql/server:2022-latest` | 1433 | SQL Server. Volumen `mercado_db_data`. Tiene control de salud (`sqlcmd SELECT 1`) |
 | `backend` | `mercado-backend` | `python:3.12-slim-bookworm` + ODBC 18 | 8000 | Al iniciar: espera a la base (`esperar_db.py`), aplica migraciones y levanta `runserver` |
-| `tareas` | `mercado-tareas` | la misma del backend | — | `python manage.py planificador`: cierre de las 00:00 y limpieza del buzón de recibos |
+| `tareas` | `mercado-tareas` | la misma del backend | — | `python manage.py planificador`: caja de las 00:45, envío de los avisos a los dueños (Telegram y correo) y limpieza del buzón de recibos |
 | `frontend` | `mercado-frontend` | `node:22` | 5173 | Servidor de desarrollo de Vite con recarga automática |
 
 Las carpetas `backend/` y `frontend/` están montadas como volumen: el código se actualiza sin reconstruir la imagen. `node_modules` queda dentro del contenedor.
@@ -183,7 +183,7 @@ sistema-mercado/
 La clase `turnos.autenticacion.AutenticacionConTurno` (autenticación por defecto de toda la API) agrega una regla sobre el JWT:
 
 1. Los dueños no llevan turno: pasan directo.
-2. Empleados y encargados solo pueden usar la API **mientras tengan un turno abierto**. Si el turno se cerró (cerraron sesión en otro equipo o el sistema lo cerró a las 00:00), la API responde 401 con «Tu turno terminó. Volvé a iniciar sesión.».
+2. Empleados y encargados solo pueden usar la API **mientras tengan un turno abierto**. Si el turno se cerró (cerraron su cuenta en otro equipo, lo cerró un dueño, o era una cuenta olvidada de un día anterior), la API responde 401 con «Tu turno terminó. Volvé a iniciar sesión.».
 3. Anota la última actividad del turno, como mucho una vez por minuto.
 4. Deja el turno en `request.user.turno_abierto`, y ventas y movimientos de stock lo guardan.
 
@@ -204,11 +204,15 @@ Además, el costo de los productos (`precio_costo`) se quita de la respuesta cua
 
 `python manage.py planificador` revisa cada 20 segundos si terminó el día y llama a `turnos.servicios.cerrar_dias_pendientes()`, que:
 
-1. Cierra los turnos que quedaron abiertos a las 00:00 y los marca **para revisar** (después el dueño corrige la hora real de salida).
-2. Genera el `CierreDiario` del día: turnos y minutos trabajados, movimientos de stock y su valor, cambios registrados, cantidad y total de ventas, efectivo y ganancia bruta.
+1. **No cierra turnos** (desde el 18/11/2026): cada persona cierra su cuenta al irse. Una cuenta olvidada (de un día anterior y sin uso hace más de una hora) se cierra en su último movimiento cuando esa persona vuelve —`cerrar_turno_olvidado()`, que se llama en el login, en la autenticación y en el logout— y queda **para revisar**.
+2. Genera el `CierreDiario` del día del mercado (de 00:45 a 00:45) y crea el aviso para cada dueño con `notificaciones.servicios.avisar_cierre()`: turnos y minutos trabajados, movimientos de stock y su valor, cambios registrados, cantidad y total de ventas, efectivo y ganancia bruta.
 3. Los domingos ejecuta `limpiar_buzon()`: los recibos de más de una semana salen del buzón (`en_buzon = 0`). **Las ventas no se borran.**
 
-La misma función se ejecuta en cada inicio de sesión y en la autenticación, por si la PC estuvo apagada a las 00:00. Se puede llamar muchas veces sin duplicar nada.
+La misma función se ejecuta en cada inicio de sesión y en la autenticación, por si la PC estuvo apagada a las 00:45. Se puede llamar muchas veces sin duplicar nada.
+
+Después el planificador llama a `notificaciones.servicios.enviar_pendientes()`: manda por Telegram (API HTTP del bot, con `urllib`) y por correo (SMTP, con el correo de Django) los envíos en cola. Si falla, vuelve a intentar con esperas de 1, 2, 4, 8, 16 y después 30 minutos, hasta 30 intentos. Las vistas web nunca mandan nada hacia afuera (salvo el aviso de prueba), así el login no se demora si no hay internet.
+
+**El día del mercado** (`core/dia.py`): `HORA_DE_CIERRE = 00:45`, `inicio_del_dia(fecha)`, `fecha_local(momento)` y `hoy()`. Todo el backend los usa para saber a qué día pertenece cada cosa (resumen, resultados, gastos de hoy, vendido hoy, «el mismo día» para modificar una venta o anular un gasto, filtros por fecha). En el frontend el equivalente es `hoyDelMercado()` y `HORA_CIERRE` en `formato.js`.
 
 ### 5.6 Lógica destacada
 
@@ -264,7 +268,11 @@ erDiagram
 | `movimiento_stock` | productos | Cada entrada o salida: tipo, cantidad con signo, stock resultante, costo, motivo, usuario, turno |
 | `cambio_producto` | productos | Alta, baja, reactivación, corrección de datos y **cambio de precio**, con el detalle |
 | `turno` | turnos | Inicio, fin, última actividad, cómo se cerró, si hay que revisarlo, y la corrección del dueño |
-| `cierre_diario` | turnos | Una fila por día con los totales calculados a las 00:00 |
+| `cierre_diario` | turnos | Una fila por día con los totales calculados a las 00:45 |
+| `configuracion_notificaciones` | notificaciones | Una sola fila: token y nombre del bot de Telegram, y cuenta y contraseña de aplicación del correo (guardados sin cifrar; la API nunca los devuelve) |
+| `vinculo_telegram` | notificaciones | El Telegram de cada dueño: código del enlace, `chat_id` y nombre |
+| `notificacion` | notificaciones | Aviso para un dueño: cierre que avisa, título, texto, cuándo se creó y cuándo lo leyó |
+| `envio_notificacion` | notificaciones | Envío de un aviso por Telegram o correo: destino, estado, intentos, próximo intento y último error |
 | `venta` | ventas | Recibo: usuario, turno, medio de pago, total, paga con, vuelto, si está en el buzón, si corrige a otra, y los datos de la anulación. El `id` es el número de recibo |
 | `detalle_venta` | ventas | Renglones: producto, nombre, unidad, cantidad, precio y costo del momento, subtotal |
 | `cliente` | clientes | Nombre, DNI o CUIT, teléfono, dirección, nota, límite propio (vacío = usa el general), saldo (lo que debe), activo |
@@ -380,6 +388,17 @@ Para fiar se usa `POST /api/ventas/` con `medio_pago: "CUENTA"` y `cliente`.
 | GET | `/api/resumen/` | Totales del período (máximo 3 meses) |
 | GET | `/api/cierres/` | Últimos 60 cierres automáticos |
 
+### Avisos a los dueños (solo dueños)
+
+| Método | Ruta | Qué hace |
+| --- | --- | --- |
+| GET | `/api/notificaciones/` | Mis avisos (últimos 40) y cuántos sin leer; `?solo=cuenta` devuelve solo el número |
+| POST | `/api/notificaciones/leer/` | Marca uno (`id`) o todos como leídos |
+| GET, PUT | `/api/notificaciones/configuracion/` | Estado y cambio del bot de Telegram, la cuenta de correo y mi correo. Nunca devuelve el token ni la contraseña |
+| POST | `/api/notificaciones/telegram/vincular/` | Lee `getUpdates` del bot, busca «/start <mi código>» y guarda mi chat |
+| POST | `/api/notificaciones/telegram/desvincular/` | Olvida mi Telegram y cambia mi código |
+| POST | `/api/notificaciones/probar/` | Aviso de prueba por los tres caminos, con el resultado de cada uno |
+
 También existe el panel de Django en `/admin/`.
 
 ---
@@ -423,7 +442,8 @@ Aplicación de una sola página con React. Sin librería de estado ni de compone
 | `/usuarios`, `/usuarios/nuevo` | `Usuarios.jsx`, `NuevoUsuario.jsx` | Dueño | Personal |
 | `/horarios` | `Horarios.jsx` | Dueño | Quién trabaja ahora, turnos para revisar, horas por persona |
 | `/actividad` | `Actividad.jsx` | Dueño | Quién hizo qué y a qué hora |
-| `/resumen` | `Resumen.jsx` | Dueño | Resumen del período y cierres de las 00:00 |
+| `/resumen` | `Resumen.jsx` | Dueño | Resumen del período y cierres de las 00:45 |
+| `/avisos` | `Avisos.jsx` | Dueño | Avisos con la caja del día, configuración de Telegram y correo, aviso de prueba. El número de avisos sin leer está en `Encabezado.jsx` (se revisa cada minuto) |
 
 En `/ventas` se puede elegir «Cuenta corriente» y el cliente, y en `/usuarios` cada encargado tiene la casilla «Puede cargar clientes de cuenta corriente».
 
@@ -452,7 +472,7 @@ Los colores son variables al principio de `frontend/src/estilos.css`. Elegidos e
 
 | Para | Comando |
 | --- | --- |
-| Pruebas del backend (192, unos 4 minutos) | `docker compose exec -T backend python manage.py test usuarios productos turnos ventas clientes gastos compras` |
+| Pruebas del backend (unos 5 minutos) | `docker compose exec -T backend python manage.py test usuarios productos turnos ventas clientes gastos compras notificaciones` |
 | Revisar el frontend (lint) | `docker compose exec -T frontend npx oxlint src` |
 | Comprobar que compila | `docker compose exec -T frontend sh -c 'npx vite build --outDir /tmp/x; rm -rf /tmp/x'` |
 | Crear una migración | `docker compose exec -T backend python manage.py makemigrations <app>` |
@@ -469,7 +489,7 @@ Pruebas por app: usuarios 28, productos 61 (12 son de precios), turnos 27, venta
 | 0–1 | Documentación y entorno Docker | Hecho |
 | 2 | Acceso | **En curso.** Hecho: login, renovación, logout, bloqueo, cambio de contraseña obligatorio, alta, baja y reactivación de usuarios. Falta: editar usuario o rol (RF-09) y restablecer contraseña con desbloqueo (RF-11, RF-07) |
 | 3 | Productos y stock | Hecho (12/11) |
-| 4 | Turnos, horas, actividad y cierre de las 00:00 | Hecho (12/11), salvo el dinero de compras y gastos |
+| 4 | Turnos, horas, actividad y cierre de las 00:45 | Hecho (12/11), salvo el dinero de compras y gastos |
 | 5 | Ventas, recibos, lector e impresora | Hecho (12/11). Falta: gráficos, consulta por turno y por año, y probar con aparatos reales |
 | — | Presentaciones (caja, cajón, bandeja…) | Hecho (12/11) |
 | — | Modificar una compra ya pagada (RF-86 a RF-89) | Hecho (12/11) |
@@ -478,7 +498,8 @@ Pruebas por app: usuarios 28, productos 61 (12 son de precios), turnos 27, venta
 | 8 | Caja y gastos (RF-106 a RF-111) | Gastos hechos (13/11): lista simple que se resta en la cuenta final del día y en el cierre. Falta lo que depende de compras a comerciantes |
 | 9 | Clientes y cuenta corriente (RF-95 a RF-105) | Hecho (13/11) |
 | 10 | Reportes y resultados por sección (RF-51 a RF-54) | Resultados por sección hechos (13/11). Faltan gráficos y consultas entre dos fechas libres |
-| 11 | Mensajes, PWA y alarma de stock en el celular | Pendiente |
+| — | Cierre a las 00:45, cuentas que ya no se cortan solas y avisos a los dueños con la caja del día (RF-123 a RF-131) | Hecho (18/11): aviso en el sistema, Telegram y correo |
+| 11 | Mensajes encargado ↔ dueño, PWA y alarma de stock en el celular | Pendiente |
 | 12 | Factura electrónica de ARCA | Pendiente |
 
 ---
@@ -495,12 +516,17 @@ Pruebas por app: usuarios 28, productos 61 (12 son de precios), turnos 27, venta
 
 **Del negocio (12/11/2026)**
 
-- Los empleados **no** hacen el cierre de caja: lo hace el sistema solo a las 00:00, y el resultado lo ven solo los dueños (tampoco los encargados). Consecuencia: sin un conteo de caja por turno, el sistema dice cuánto dinero debería haber pero no detecta un faltante por sí solo.
+- Los empleados **no** hacen el cierre de caja: lo hace el sistema solo a las 00:45, y el resultado lo ven solo los dueños (tampoco los encargados). Consecuencia: sin un conteo de caja por turno, el sistema dice cuánto dinero debería haber pero no detecta un faltante por sí solo.
 - Horas trabajadas y actividad: solo dueños.
-- Una sesión olvidada se cierra a las 00:00 y el dueño corrige después la hora real de salida.
+- Una sesión olvidada se cerraba a las 00:00 y el dueño corregía después la hora real de salida. _(Reemplazada el 18/11/2026: ver abajo.)_
 - Se puede vender aunque no haya stock cargado: queda en negativo con un aviso.
 - El buzón de recibos saca los domingos solo los de más de una semana; las ventas nunca se borran.
 - El cajero puede modificar sus propias ventas del mismo día; encargados y dueños, cualquiera.
+
+**Cierre a las 00:45 y avisos (18/11/2026)**
+
+- Pedido de la usuaria: el cierre automático pasa de las 00:00 a las **00:45**; el sistema ya **no les cierra la cuenta** a los empleados (cada uno cierra la suya); y apenas hace la caja les manda una notificación a los dueños con toda la caja del día. Canales: eligió **los tres** (sistema, Telegram y correo), «por si acaso».
+- Elecciones de Claude, sin confirmar con la usuaria: el día del mercado entero va de 00:45 a 00:45 (lo de 00:00 a 00:45 cuenta para el día anterior); la cuenta olvidada se cierra recién cuando la persona vuelve, en su último movimiento, si lleva más de una hora sin uso; al corregir una salida el turno puede durar hasta 24 horas; Telegram con un bot propio leído con `getUpdates` (sin webhook, porque no hay dirección pública); correo por Gmail con contraseña de aplicación; el token y la contraseña se guardan en la base sin cifrar; hasta 30 reintentos; al ponerse al día solo se avisan los últimos 3 cierres.
 
 **Cuenta corriente (13/11/2026)**
 
@@ -551,7 +577,8 @@ Pruebas por app: usuarios 28, productos 61 (12 son de precios), turnos 27, venta
 | Git | El repositorio está creado en `main` pero **sin ningún commit**: falta el nombre y el correo de git |
 | Lector e impresora | Sin probar con aparatos reales |
 | Frontend | El `README.md` es el de la plantilla de Vite y `public/favicon.svg` está vacío |
-| Producción | Falta la imagen con nginx, HTTPS (necesario para PWA y notificaciones) y las copias de seguridad |
+| Producción | Falta la imagen con nginx, HTTPS (necesario para PWA y notificaciones push del navegador) y las copias de seguridad |
+| Avisos a los dueños | Telegram y correo están probados solo con simulaciones: falta probarlos con un bot y una cuenta de Gmail reales. El token del bot y la contraseña del correo se guardan en la base sin cifrar |
 | `documentacion.md` | Algunas cantidades de pruebas que menciona quedaron viejas (hoy son 192) |
 
 ---

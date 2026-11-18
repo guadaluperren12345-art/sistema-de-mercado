@@ -18,4 +18,5 @@ urlpatterns = [
     path("api/", include("gastos.urls")),  # lista de gastos
     path("api/", include("compras.urls")),  # compras a comerciantes
     path("api/", include("turnos.urls")),  # horarios, actividad, resumen y cierres del día
+    path("api/", include("notificaciones.urls")),  # avisos a los dueños (caja del día)
 ]

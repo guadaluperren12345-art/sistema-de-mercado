@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
 import RutaProtegida from './auth/RutaProtegida'
 import Actividad from './paginas/Actividad'
+import Avisos from './paginas/Avisos'
 import CambiarPassword from './paginas/CambiarPassword'
 import Clientes from './paginas/Clientes'
 import Compras from './paginas/Compras'
@@ -97,6 +98,11 @@ export default function App() {
           <Route
             path="/resumen"
             element={<RutaProtegida roles={SOLO_DUEÑOS}><Resumen /></RutaProtegida>}
+          />
+          {/* Avisos con la caja del día (sistema, Telegram y correo): solo los dueños */}
+          <Route
+            path="/avisos"
+            element={<RutaProtegida roles={SOLO_DUEÑOS}><Avisos /></RutaProtegida>}
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -8,12 +8,14 @@ from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core import dia
 from usuarios.permisos import EsAdministrador, PasswordAlDia
 
 from . import servicios
 from .models import CierreDiario, Turno
 
 MAX_DIAS = 92  # un período consultado no puede pasar de 3 meses
+MAX_HORAS_DE_TURNO = 24
 
 
 def error(mensaje):
@@ -25,8 +27,8 @@ class ParametroInvalido(Exception):
 
 
 def leer_fechas(params):
-    """Lee ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD. Sin parámetros, es el día de hoy."""
-    hoy = timezone.localdate()
+    """Lee ?desde=AAAA-MM-DD&hasta=AAAA-MM-DD. Sin parámetros, es el día de hoy (el del mercado: hasta las 00:45)."""
+    hoy = dia.hoy()
     try:
         desde = date.fromisoformat(params["desde"]) if params.get("desde") else hoy
         hasta = date.fromisoformat(params["hasta"]) if params.get("hasta") else desde
@@ -82,7 +84,7 @@ class TurnosView(VistaDeDueños):
     """GET /api/turnos/?desde=&hasta=&usuario=  — turnos que empezaron en el período (RF-26).
 
     Otros filtros:  ?estado=abiertos (quién está trabajando ahora, RF-28)
-                    ?estado=revisar  (los que cerró el sistema a las 00:00 y falta revisar, RF-27)
+                    ?estado=revisar  (cuentas olvidadas que cerró el sistema y falta revisar, RF-27)
     """
 
     def get(self, request):
@@ -120,11 +122,10 @@ class CorregirTurnoView(VistaDeDueños):
 
         if request.data.get("fin"):
             fin = leer_momento(request.data["fin"]).replace(second=0, microsecond=0)
-            medianoche = servicios.inicio_del_dia(servicios.fecha_local(turno.inicio) + timedelta(days=1))
             if fin <= turno.inicio:
                 return error("La hora de salida tiene que ser posterior a la de entrada.")
-            if fin > medianoche:
-                return error("La salida no puede pasar de las 00:00: después de esa hora empieza otro día.")
+            if fin > turno.inicio + timedelta(hours=MAX_HORAS_DE_TURNO):
+                return error("Un turno no puede durar más de 24 horas. Revisá la hora de salida.")
             if fin > ahora:
                 return error("La hora de salida no puede estar en el futuro.")
             if turno.fin and turno.fin_original is None:
@@ -179,7 +180,7 @@ class ResultadosView(VistaDeDueños):
     """GET /api/resultados/?desde=AAAA-MM-DD&hasta=AAAA-MM-DD — ganancia o pérdida de cada sección (hasta un año)."""
 
     def get(self, request):
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         p = request.query_params
         try:
             desde = date.fromisoformat(p["desde"]) if p.get("desde") else hoy
@@ -211,7 +212,7 @@ class CierreDiarioSerializer(serializers.ModelSerializer):
 
 
 class CierresView(VistaDeDueños):
-    """GET /api/cierres/ — los últimos cierres automáticos del día (hasta 60)."""
+    """GET /api/cierres/ — las últimas cajas del día que hizo el sistema a las 00:45 (hasta 60)."""
 
     def get(self, request):
         servicios.cerrar_dias_pendientes()

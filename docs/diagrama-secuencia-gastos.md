@@ -164,7 +164,7 @@ A diferencia de otros módulos, acá el permiso no lo decide solo el rol: depend
 
 ## 4. Cómo llegan los gastos al cierre del día
 
-Los gastos no restan de nada en el momento de anotarlos. Se suman cuando un dueño mira el resumen y cuando el sistema hace el cierre de las 00:00.
+Los gastos no restan de nada en el momento de anotarlos. Se suman cuando un dueño mira el resumen y cuando el sistema hace el cierre de las 00:45.
 
 ```mermaid
 sequenceDiagram
@@ -177,7 +177,7 @@ sequenceDiagram
     alt El dueño mira el resumen
         Dueno->>Resumen: Abre Resumen y cierre del día
         Resumen->>Servicios: GET /api/resumen/
-    else Pasan las 00:00
+    else Pasan las 00:45
         Plan->>Servicios: cerrar_dias_pendientes
     end
 
@@ -191,7 +191,7 @@ sequenceDiagram
     alt Era el resumen
         Servicios-->>Resumen: Cuenta final con los gastos en negativo
         Resumen-->>Dueno: Muestra la cuenta final y la lista de gastos
-    else Era el cierre de las 00:00
+    else Era el cierre de las 00:45
         Servicios->>BD: INSERT en cierre_diario con cantidad<br/>y total de gastos del día
     end
 ```

@@ -73,7 +73,7 @@ class LoginView(APIView):
         usuario.registrar_ingreso_exitoso()
         RegistroAcceso.registrar(request, RegistroAcceso.LOGIN, True, usuario)
         # RF-21: al entrar con su contraseña empieza a contar su horario.
-        # Antes se cierran los días anteriores, por si la computadora estuvo apagada a las 00:00.
+        # Antes se hace la caja de los días anteriores, por si la computadora estuvo apagada a las 00:45.
         servicios.cerrar_dias_pendientes()
         servicios.abrir_turno(usuario)
         refresh = RefreshToken.for_user(usuario)
@@ -126,6 +126,8 @@ class LogoutView(APIView):
 
         TokenInvalidado.invalidar(token)
         por_inactividad = datos.validated_data.get("motivo") == "inactividad"
+        # Si la cuenta quedó olvidada desde un día anterior, termina en su último movimiento y no ahora
+        servicios.cerrar_turno_olvidado(usuario)
         servicios.cerrar_turno(usuario, Turno.INACTIVIDAD if por_inactividad else Turno.USUARIO)
         RegistroAcceso.registrar(request, RegistroAcceso.LOGOUT, True, usuario)
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -100,7 +100,7 @@ export async function api(ruta, { metodo = 'GET', datos, autenticado = true } = 
 
   const cuerpo = res.status === 204 ? null : await res.json().catch(() => null)
   if (res.status === 401 && autenticado) {
-    // La sesión ya no sirve (venció, o el turno terminó a las 00:00): se avisa para volver al login
+    // La sesión ya no sirve (venció, o el turno se cerró): se avisa para volver al login
     // Con `code` es el aviso técnico de token vencido; sin él es un mensaje nuestro ("Tu turno terminó…")
     const detalle = cuerpo?.code ? '' : mensajeDeError(cuerpo)
     window.dispatchEvent(new CustomEvent(EVENTO_SESION_TERMINADA, { detail: detalle }))

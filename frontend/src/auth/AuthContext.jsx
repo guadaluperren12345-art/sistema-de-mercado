@@ -55,7 +55,7 @@ export function AuthProvider({ children }) {
     setUsuario(datos)
   }, [])
 
-  // La API rechazó la sesión (venció, o el sistema cerró el turno a las 00:00): vuelve al login
+  // La API rechazó la sesión (venció, o el turno se cerró): vuelve al login
   useEffect(() => {
     const terminar = (e) => {
       borrarTokens()

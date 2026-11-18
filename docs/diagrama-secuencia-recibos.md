@@ -174,7 +174,7 @@ Un empleado que pide un recibo ajeno recibe «no existe» (404): no puede saber 
 
 ## 5. La limpieza semanal del buzón
 
-Nadie la pide: la hace el planificador, el mismo proceso del cierre de las 00:00.
+Nadie la pide: la hace el planificador, el mismo proceso del cierre de las 00:45.
 
 ```mermaid
 sequenceDiagram
@@ -197,4 +197,4 @@ Como el corte se mueve una vez por semana, en el buzón siempre quedan a mano lo
 
 ## Casos comunes
 
-El token vencido está en [`diagrama-secuencia-usuarios.md`](diagrama-secuencia-usuarios.md); el turno cerrado y el detalle de cobrar, modificar y anular, en [`diagrama-secuencia-ventas.md`](diagrama-secuencia-ventas.md); el cierre de las 00:00, en [`diagrama-secuencia-resumen-cierre.md`](diagrama-secuencia-resumen-cierre.md).
+El token vencido está en [`diagrama-secuencia-usuarios.md`](diagrama-secuencia-usuarios.md); el turno cerrado y el detalle de cobrar, modificar y anular, en [`diagrama-secuencia-ventas.md`](diagrama-secuencia-ventas.md); el cierre de las 00:45, en [`diagrama-secuencia-resumen-cierre.md`](diagrama-secuencia-resumen-cierre.md).

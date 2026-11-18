@@ -9,6 +9,8 @@ from decimal import Decimal
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core import dia
+
 from productos.models import Categoria, Producto
 from turnos import servicios as turnos
 from usuarios.models import CambioUsuario, Rol, Usuario
@@ -268,13 +270,13 @@ class PagosTests(Base):
     def test_resumen_cierre_y_actividad(self):  # RF-104
         self.pagar("5000", "EFECTIVO")
         self.pagar("1000", "QR")
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         r = turnos.resumen(hoy, hoy)
         self.assertEqual(r["ventas"]["fiado"], "13000.00")
         self.assertEqual(r["ventas"]["efectivo"], "0.00")  # lo fiado no es plata en la caja
         cuenta = r["cuenta_corriente"]
         self.assertEqual((cuenta["cobros"], cuenta["total"], cuenta["efectivo"]), (2, "6000.00", "5000.00"))
-        cierre = turnos.generar_cierre(hoy)
+        cierre = turnos.generar_cierre(hoy)[0]
         cierre.refresh_from_db()
         self.assertEqual((cierre.ventas_fiado, cierre.cobros_cuenta, cierre.cobros_cuenta_efectivo),
                          (Decimal("13000.00"), Decimal("6000.00"), Decimal("5000.00")))

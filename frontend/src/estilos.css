@@ -665,3 +665,37 @@ td .boton-texto { padding: 2px 6px; font-size: 1rem; text-transform: capitalize;
 .producto-nuevo { display: grid; gap: 12px; padding: 12px; border: 2px dashed var(--primario); border-radius: 10px; }
 .crear-producto { justify-self: start; text-align: left; }
 .stock-en-productos { font-weight: 600; }
+
+/* ---------- Avisos a los dueños (la caja del día) ---------- */
+.alerta-rosa { background: var(--primario-suave); color: var(--primario-hover); border: 1px solid var(--primario); }
+.contador-avisos {
+  display: inline-block;
+  min-width: 20px;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--primario);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+.aviso { display: grid; gap: 10px; }
+.aviso-nuevo { border-left: 5px solid var(--primario); }
+.texto-aviso {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--fondo);
+  font-family: inherit;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.canal-aviso { display: grid; gap: 10px; margin-bottom: 12px; justify-items: start; }
+.canal-aviso > p, .canal-aviso .pasos { margin: 0; }
+.canal-aviso label, .canal-aviso .formulario-canal { width: 100%; max-width: 520px; }
+.canal-aviso a { overflow-wrap: anywhere; }
+.formulario-canal { display: grid; gap: 10px; justify-items: start; }
+.resultado-prueba { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

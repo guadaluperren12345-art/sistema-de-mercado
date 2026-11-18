@@ -37,7 +37,7 @@ De dónde sale cada grupo de eventos:
 | Stock | Ingresos, pérdidas y recuentos | `movimiento_stock` |
 | Productos | Altas, bajas, correcciones y cambios de precio | `cambio_producto` |
 | Ingresos y salidas | Inicios y cierres de sesión, intentos fallidos y bloqueos | `registro_acceso` |
-| Horarios | Correcciones de horario, turnos cerrados a las 00:00 y cierres del día | `turno`, `cierre_diario` |
+| Horarios | Correcciones de horario, cuentas olvidadas que cerró el sistema y cierres del día | `turno`, `cierre_diario` |
 | Usuarios | Altas, bajas, reactivaciones y cambios de permiso | `cambio_usuario` |
 
 ## 1. Obtención: ver la actividad de un día y horario
@@ -100,7 +100,7 @@ Qué devuelve el servidor:
 - **`hay_mas`:** verdadero si había más de 500, para avisar que conviene achicar el horario.
 - **`de_turno`:** los empleados y encargados que tenían el sistema abierto en algún momento de ese rato, con su hora de entrada y de salida.
 
-Lo que hace el sistema solo (cerrar un turno a las 00:00, generar el cierre del día) aparece a nombre de «El sistema».
+Lo que hace el sistema solo (cerrar una cuenta olvidada, generar el cierre del día a las 00:45) aparece a nombre de «El sistema».
 
 ## 2. Filtrar por horario, persona o tipo
 

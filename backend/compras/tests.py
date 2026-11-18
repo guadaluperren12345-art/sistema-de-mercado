@@ -9,6 +9,8 @@ from decimal import Decimal
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core import dia
+
 from productos.models import Categoria, MovimientoStock, Producto
 from turnos import servicios as turnos
 from usuarios.models import Rol, Usuario
@@ -211,14 +213,14 @@ class ComprasTests(Base):
         self.client.post(f"/api/compras/{otra}/pago/", {"importe": "10000", "medio_pago": "TRANSFERENCIA"}, format="json")
         anulada = self.comprar(pagado="5000").data["id"]
         self.client.post(f"/api/compras/{anulada}/anular/", {"motivo": "Error"})
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         r = turnos.resumen(hoy, hoy)
         self.assertEqual(r["comerciantes"], {"compras": 2, "comprado": "160000.00", "pagos": 2, "pagado": "40000.00",
                                              "pagado_efectivo": "30000.00", "deuda_actual": "120000.00"})
         self.assertEqual(r["caja"], {"entro": "0.00", "gastos": "0.00", "pagos_comerciantes": "40000.00",
                                      "resultado": "-40000.00", "efectivo": "-30000.00"})
         self.assertEqual(r["mercaderia"]["ingresos"]["valor"], "160000.00")  # la anulada no cuenta
-        cierre = turnos.generar_cierre(hoy)
+        cierre = turnos.generar_cierre(hoy)[0]
         cierre.refresh_from_db()
         self.assertEqual((cierre.compras_total, cierre.pagos_comerciantes, cierre.pagos_comerciantes_efectivo),
                          (Decimal("160000.00"), Decimal("40000.00"), Decimal("30000.00")))
@@ -253,7 +255,7 @@ class ResultadosTests(Base):
         self.entrar_como(Rol.ADMINISTRADOR)
 
     def test_resultado_de_cada_seccion_y_general(self):
-        hoy = timezone.localdate().isoformat()
+        hoy = dia.hoy().isoformat()
         r = self.client.get(f"/api/resultados/?desde={hoy}&hasta={hoy}")
         self.assertEqual(r.status_code, 200, r.data)
         secciones = {s["seccion"]: s for s in r.data["secciones"]}

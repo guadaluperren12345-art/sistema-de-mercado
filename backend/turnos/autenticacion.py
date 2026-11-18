@@ -1,8 +1,11 @@
 """Autenticación de la API: token JWT + turno abierto.
 
 Un empleado o encargado solo puede usar el sistema mientras su turno está abierto.
-Cuando el turno se cierra (cerró sesión en otro dispositivo, o el sistema lo cerró a las 00:00),
+Cuando el turno se cierra (cerró su cuenta en otro dispositivo, o lo cerró un dueño),
 su sesión deja de servir y tiene que volver a ingresar con su contraseña.
+
+El sistema ya no corta las cuentas a ninguna hora: quien sigue trabajando pasada la medianoche
+sigue con su misma cuenta hasta que la cierra. Solo se corta la que quedó olvidada de un día anterior.
 """
 
 from datetime import timedelta
@@ -27,11 +30,10 @@ class AutenticacionConTurno(JWTAuthentication):
 
         if servicios.lleva_turno(usuario):
             ahora = timezone.now()
-            turno = Turno.objects.filter(usuario_id=usuario.pk, fin__isnull=True).first()
-            if turno and turno.inicio < servicios.inicio_del_dia(servicios.fecha_local(ahora)):
-                # Quedó abierto de un día anterior y el planificador todavía no pasó: se cierra ahora
-                servicios.cerrar_dias_pendientes(ahora)
-                turno = None
+            if servicios.cerrar_turno_olvidado(usuario, ahora):
+                turno = None  # era una cuenta olvidada de un día anterior: tiene que volver a entrar
+            else:
+                turno = Turno.objects.filter(usuario_id=usuario.pk, fin__isnull=True).first()
             if turno is None:
                 raise AuthenticationFailed(MENSAJE_TURNO_CERRADO, code="turno_cerrado")
             # Se anota la última actividad (como mucho una vez por minuto, para no escribir de más)

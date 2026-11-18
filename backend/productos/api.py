@@ -16,6 +16,7 @@ from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.dia import inicio_del_dia  # el día del mercado empieza a las 00:45
 from usuarios.permisos import EsEncargadoOAdministrador, PasswordAlDia
 
 from .models import CambioProducto, Categoria, MovimientoStock, Producto, Seccion
@@ -461,8 +462,6 @@ class MovimientosViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         return qs[: self.MAXIMO]
 
 
-def inicio_del_dia(fecha):
-    return timezone.make_aware(datetime.combine(fecha, time.min))
 
 
 class ProductosViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin,

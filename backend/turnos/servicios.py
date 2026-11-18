@@ -1,17 +1,19 @@
 """Reglas de turnos, cierre del día, resumen por período y registro de actividad.
 
-Las vistas (api.py), el login y el planificador de las 00:00 usan estas funciones.
+Las vistas (api.py), el login y el planificador de las 00:45 usan estas funciones.
 """
 
 from collections import defaultdict
-from datetime import datetime, time, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from django.utils import timezone
 
 from clientes.models import CambioCliente, MovimientoCuenta
 from compras.models import Compra, PagoCompra
+from core.dia import fecha_local, inicio_del_dia  # el día del mercado va de 00:45 a 00:45
 from gastos.models import Gasto
+from notificaciones import servicios as avisos
 from productos.models import CambioProducto, MovimientoStock, Seccion
 from usuarios.models import CambioUsuario, RegistroAcceso
 from ventas.models import DetalleVenta, Venta
@@ -20,22 +22,16 @@ from .models import CierreDiario, Turno
 
 CENTAVOS = Decimal("0.01")
 MAX_DIAS_ATRASADOS = 366  # si la computadora estuvo apagada, se ponen al día hasta un año de cierres
+MAX_CIERRES_AVISADOS = 3  # al ponerse al día después de varios días apagada, solo se avisan los últimos
+# Una cuenta abierta desde un día anterior y sin uso en este rato es una cuenta olvidada (RF-27)
+TIEMPO_DE_OLVIDO = timedelta(hours=1)
 
 
 # ---------- Fechas ----------
 
-def inicio_del_dia(fecha):
-    """Las 00:00 de una fecha, en la hora de Argentina."""
-    return timezone.make_aware(datetime.combine(fecha, time.min))
-
-
 def rango_de_fechas(desde, hasta):
     """Momento inicial y final (sin incluir) de un período de días completos."""
     return inicio_del_dia(desde), inicio_del_dia(hasta + timedelta(days=1))
-
-
-def fecha_local(momento):
-    return timezone.localtime(momento).date()
 
 
 # ---------- Turnos ----------
@@ -50,9 +46,13 @@ def turno_abierto(usuario):
 
 
 def abrir_turno(usuario):
-    """RF-21: al iniciar sesión se abre el turno. Si ya tenía uno abierto hoy, sigue con ese (RN-07)."""
+    """RF-21: al iniciar sesión se abre el turno. Si ya tenía uno abierto, sigue con ese (RN-07).
+
+    Si el que tenía abierto es una cuenta olvidada de un día anterior, se cierra y empieza uno nuevo.
+    """
     if not lleva_turno(usuario):
         return None
+    cerrar_turno_olvidado(usuario)
     turno, _ = Turno.objects.get_or_create(usuario=usuario, fin__isnull=True)
     return turno
 
@@ -65,27 +65,41 @@ def cerrar_turno(usuario, tipo, cuando=None):
     )
 
 
-# ---------- Cierre automático de las 00:00 ----------
+def cerrar_turno_olvidado(usuario, ahora=None):
+    """RF-27: la cuenta que alguien se olvidó de cerrar. Devuelve True si había una y se cerró.
+
+    El sistema ya no les cierra la cuenta a los empleados a ninguna hora: la cierra cada uno al irse.
+    Pero si alguien se la olvidó abierta (es de un día anterior y hace más de una hora que no la usa),
+    cuando esa persona vuelve se le cierra en el último momento en que usó el sistema y queda
+    marcada para que el dueño revise la hora real de salida.
+    """
+    ahora = ahora or timezone.now()
+    turno = turno_abierto(usuario)
+    if turno is None or turno.inicio >= inicio_del_dia(fecha_local(ahora)):
+        return False
+    if ahora - turno.ultima_actividad < TIEMPO_DE_OLVIDO:
+        return False  # sigue trabajando pasada la hora del cierre: no se toca
+    fin = max(turno.ultima_actividad, turno.inicio)
+    return bool(Turno.objects.filter(pk=turno.pk, fin__isnull=True).update(
+        fin=fin, tipo_cierre=Turno.SISTEMA, para_revisar=True
+    ))
+
+
+# ---------- Cierre automático de las 00:45 ----------
 
 def cerrar_dias_pendientes(ahora=None):
-    """Cierra los días que ya terminaron. Se puede llamar todas las veces que haga falta.
+    """Hace la caja de los días que ya terminaron. Se puede llamar todas las veces que haga falta.
 
-    1. Los turnos que quedaron abiertos de un día anterior se cierran a las 00:00 en punto
-       y quedan marcados para que el dueño revise la hora real de salida.
-    2. Se genera el cierre de cada día terminado que todavía no lo tenga.
+    Genera el cierre de cada día terminado que todavía no lo tenga y les avisa a los dueños
+    (aviso en el sistema, Telegram y correo). NO cierra las cuentas de los empleados: cada uno
+    cierra la suya al irse.
 
-    Lo ejecuta el planificador apenas pasan las 00:00. Si la computadora estaba apagada a esa
-    hora, se pone al día sola en el próximo inicio de sesión.
+    Lo ejecuta el planificador apenas pasan las 00:45. Si la computadora estaba apagada a esa
+    hora, se pone al día sola cuando se enciende o en el próximo inicio de sesión.
     """
     ahora = ahora or timezone.now()
     hoy = fecha_local(ahora)
     limpiar_buzon(hoy)
-
-    for turno in Turno.objects.filter(fin__isnull=True, inicio__lt=inicio_del_dia(hoy)):
-        medianoche = inicio_del_dia(fecha_local(turno.inicio) + timedelta(days=1))
-        Turno.objects.filter(pk=turno.pk, fin__isnull=True).update(
-            fin=medianoche, tipo_cierre=Turno.SISTEMA, para_revisar=True
-        )
 
     ultimo = CierreDiario.objects.order_by("-fecha").values_list("fecha", flat=True).first()
     if ultimo:
@@ -103,9 +117,13 @@ def cerrar_dias_pendientes(ahora=None):
 
     generados = []
     while fecha < hoy:
-        generados.append(generar_cierre(fecha))
+        cierre, nuevo, r = generar_cierre(fecha)
+        if nuevo:
+            generados.append((cierre, r))
         fecha += timedelta(days=1)
-    return generados
+    for cierre, r in generados[-MAX_CIERRES_AVISADOS:]:
+        avisos.avisar_cierre(cierre, r)
+    return [cierre for cierre, _ in generados]
 
 
 def limpiar_buzon(hoy):
@@ -121,8 +139,9 @@ def limpiar_buzon(hoy):
 
 
 def generar_cierre(fecha):
+    """Guarda la foto de los totales de un día. Devuelve (cierre, si es nuevo, el resumen del día)."""
     r = resumen(fecha, fecha)
-    cierre, _ = CierreDiario.objects.get_or_create(
+    cierre, nuevo = CierreDiario.objects.get_or_create(
         fecha=fecha,
         defaults={
             "turnos": r["personal"]["turnos"],
@@ -147,7 +166,7 @@ def generar_cierre(fecha):
             "pagos_comerciantes_efectivo": r["comerciantes"]["pagado_efectivo"],
         },
     )
-    return cierre
+    return cierre, nuevo, r
 
 
 # ---------- Ventas de un período ----------
@@ -361,8 +380,12 @@ def resumen(desde, hasta):
     # --- Personal: horas trabajadas ---
     personas = {}
     cantidad_turnos = minutos_totales = por_sistema = para_revisar = 0
+    abiertos = []  # quienes todavía no cerraron su cuenta
     for t in Turno.objects.filter(inicio__gte=inicio, inicio__lt=fin).select_related("usuario__rol"):
         minutos = t.minutos
+        if t.abierto:
+            abiertos.append({"id": t.usuario_id, "nombre": t.usuario.nombre_completo,
+                             "inicio": t.inicio, "ultima_actividad": t.ultima_actividad})
         cantidad_turnos += 1
         minutos_totales += minutos
         por_sistema += t.tipo_cierre == Turno.SISTEMA
@@ -421,6 +444,7 @@ def resumen(desde, hasta):
             "minutos": minutos_totales,
             "cerrados_por_sistema": por_sistema,
             "para_revisar": para_revisar,
+            "abiertos": abiertos,
             "por_persona": sorted(personas.values(), key=lambda p: p["nombre"]),
         },
         "cambios": cambios,
@@ -622,10 +646,10 @@ def actividad(desde, hasta, usuario_id=None, grupo=None):
             agregar(TURNOS, t.corregido_en, _persona(t.corregido_por), titulo, detalle)
 
         if not usuario_id:
-            # Lo que hizo el sistema solo a las 00:00
+            # Lo que hizo el sistema solo: cuentas olvidadas y la caja de las 00:45
             for t in en_rango(Turno.objects.filter(tipo_cierre=Turno.SISTEMA).select_related("usuario"), "fin")[:MAX_EVENTOS]:
-                agregar(TURNOS, t.fin, SISTEMA, "Turno cerrado a las 00:00",
-                        f"{t.usuario.nombre_completo} no cerró sesión")
+                agregar(TURNOS, t.fin, SISTEMA, "Cuenta que quedó abierta",
+                        f"{t.usuario.nombre_completo} no cerró su cuenta")
             for c in en_rango(CierreDiario.objects.all(), "generado_en")[:MAX_EVENTOS]:
                 agregar(TURNOS, c.generado_en, SISTEMA, "Cierre automático del día", f"Día {c.fecha:%d/%m/%Y}")
 

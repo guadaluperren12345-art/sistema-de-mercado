@@ -3,18 +3,18 @@ import { api } from '../api'
 import { useAuth } from '../auth/AuthContext'
 import ConfirmarBaja from '../componentes/ConfirmarBaja'
 import Encabezado from '../componentes/Encabezado'
-import { aFechaISO, diaCorto, hora, leerNumero, pesos } from '../formato'
+import { aFechaISO, diaCorto, hora, HORA_CIERRE, hoyDelMercado, leerNumero, pesos } from '../formato'
 import { useConsulta } from '../useConsulta'
 
 // Lista de gastos (RF-106 a RF-111). La usan todos, como una hoja de anotaciones:
-// cada renglón es un monto y para qué fue. El total del día se resta solo en el cierre de las 00:00.
+// cada renglón es un monto y para qué fue. El total del día se resta solo en el cierre de las 00:45.
 // Un gasto no se borra: si se anotó mal, se anula (lo puede hacer quien lo anotó, ese mismo día,
 // o un encargado o dueño). Dueños y encargados pueden mirar también los días anteriores.
 
 export default function Gastos() {
   const { usuario } = useAuth()
   const veOtrosDias = usuario.rol !== 'Empleado'
-  const [hoy] = useState(() => aFechaISO(new Date()))
+  const [hoy] = useState(() => aFechaISO(hoyDelMercado())) // el día del mercado termina a las 00:45
   const [fecha, setFecha] = useState(hoy)
   const [version, setVersion] = useState(0) // al cambiar, vuelve a pedir la lista
   const { datos, error: errorLista } = useConsulta(`/api/gastos/?fecha=${fecha}`, version)
@@ -78,7 +78,7 @@ export default function Gastos() {
       <main className="contenedor">
         <h1>Gastos</h1>
         <p className="subtitulo">
-          Anotá cada gasto con su monto y para qué fue. El total del día se resta solo en el cierre de las 00:00.
+          Anotá cada gasto con su monto y para qué fue. El total del día se resta solo en el cierre de las {HORA_CIERRE}.
         </p>
 
         <form className="tarjeta anotar-gasto" onSubmit={anotar} noValidate>

@@ -1,12 +1,13 @@
 // Períodos para los reportes: un día, una semana (lunes a domingo) o un mes.
 
-import { aFechaISO } from './formato'
+import { aFechaISO, hoyDelMercado } from './formato'
 
 export const TIPOS_DE_PERIODO = [['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes']]
 
 const sinHora = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 
-export const hoy = () => sinHora(new Date())
+// Hoy es el día del mercado: hasta las 00:45 sigue siendo el día anterior
+export const hoy = () => hoyDelMercado()
 
 // Primer y último día del período que contiene a `ancla`
 export function rangoDe(tipo, ancla) {

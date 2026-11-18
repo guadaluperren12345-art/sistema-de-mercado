@@ -17,7 +17,8 @@ const MODULOS = [
   { nombre: 'Gastos', roles: ['Administrador', 'Encargado', 'Empleado'], ruta: '/gastos', detalle: 'Anotar un monto y para qué fue' },
   { nombre: 'Precios', roles: ['Administrador', 'Encargado'], ruta: '/precios', detalle: 'Subir o bajar por categoría' },
   { nombre: 'Mensajes al dueño', roles: ['Encargado'] },
-  { nombre: 'Resumen y cierre del día', roles: ['Administrador'], ruta: '/resumen', detalle: 'Entradas, salidas y cierre de las 00:00' },
+  { nombre: 'Resumen y cierre del día', roles: ['Administrador'], ruta: '/resumen', detalle: 'Entradas, salidas y cierre de las 00:45' },
+  { nombre: 'Avisos', roles: ['Administrador'], ruta: '/avisos', detalle: 'La caja del día: acá, por Telegram y por correo' },
   { nombre: 'Horarios del personal', roles: ['Administrador'], ruta: '/horarios', detalle: 'Quién trabaja ahora y horas trabajadas' },
   { nombre: 'Actividad del sistema', roles: ['Administrador'], ruta: '/actividad', detalle: 'Quién hizo qué y a qué hora' },
   { nombre: 'Resultados por sección', roles: ['Administrador'], ruta: '/resultados', detalle: 'Cuánto gana o pierde cada sección' },
@@ -33,6 +34,7 @@ export default function Inicio() {
   const esDueño = usuario.rol === 'Administrador'
   const [stock, setStock] = useState(null) // { rojos, amarillos }
   const [porRevisar, setPorRevisar] = useState(0)
+  const [avisos, setAvisos] = useState(0) // avisos sin leer (la caja del día), solo dueños
   const [vendido, setVendido] = useState(null) // lo vendido hoy (dueños y encargados, RF-41)
   const veVentas = usuario.rol !== 'Empleado'
 
@@ -44,7 +46,10 @@ export default function Inicio() {
         amarillos: productos.filter((p) => p.semaforo === 'AMARILLO').length,
       }))
       .catch(() => {})
-    if (esDueño) api('/api/turnos/?estado=revisar').then((t) => setPorRevisar(t.length)).catch(() => {})
+    if (esDueño) {
+      api('/api/turnos/?estado=revisar').then((t) => setPorRevisar(t.length)).catch(() => {})
+      api('/api/notificaciones/?solo=cuenta').then((n) => setAvisos(n.sin_leer)).catch(() => {})
+    }
     if (veVentas) api('/api/ventas/hoy/').then(setVendido).catch(() => {})
   }, [esDueño, veVentas])
 
@@ -82,9 +87,14 @@ export default function Inicio() {
             <span className="punto punto-amarillo" /> {plural(stock.amarillos, 'producto con poco stock', 'productos con poco stock')} — ver
           </Link>
         )}
+        {avisos > 0 && (
+          <Link to="/avisos" className="alerta alerta-rosa">
+            {plural(avisos, 'aviso nuevo', 'avisos nuevos')}: la caja del día está hecha — ver
+          </Link>
+        )}
         {porRevisar > 0 && (
           <Link to="/horarios" className="alerta alerta-amarilla">
-            {plural(porRevisar, 'horario para revisar', 'horarios para revisar')}: alguien no cerró sesión y el sistema cerró su turno a las 00:00 — ver
+            {plural(porRevisar, 'horario para revisar', 'horarios para revisar')}: alguien se olvidó la cuenta abierta — ver
           </Link>
         )}
 

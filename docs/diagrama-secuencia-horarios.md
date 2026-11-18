@@ -58,7 +58,7 @@ sequenceDiagram
     Note over Permisos: Token válido y es Administrador
     Permisos->>Vista: get
     Vista->>Servicios: cerrar_dias_pendientes
-    Note over Servicios: Si algún turno quedó abierto de un día anterior,<br/>lo cierra a las 00:00 y lo marca para revisar
+    Note over Servicios: Hace la caja de los días terminados, si falta.<br/>No le cierra la cuenta a nadie
     Note over Vista: Filtra según el pedido,<br/>sin hora de salida, para revisar,<br/>o los que empezaron en esas fechas
     Vista->>BD: SELECT en turno con su usuario y rol
     BD-->>Vista: Turnos
@@ -174,14 +174,14 @@ El turno guarda **cómo se cerró**, y eso se ve en Horarios:
 | --- | --- |
 | Cerró sesión | La persona tocó «Cerrar sesión» |
 | Se cerró por inactividad | Dejó la pantalla sin usar y la sesión se cortó sola |
-| Lo cerró el sistema a las 00:00 | No cerró sesión; el planificador cerró el turno a medianoche y lo marcó para revisar |
+| Quedó abierta: la cerró el sistema | Se olvidó la cuenta abierta (era de un día anterior y llevaba más de una hora sin uso). Cuando volvió a entrar, el sistema la cerró en su último movimiento y la marcó para revisar |
 | Lo cerró un dueño | El dueño lo cerró desde Horarios, o dio de baja al usuario mientras trabajaba |
 
-El cierre de las 00:00 está en [`diagrama-secuencia-resumen-cierre.md`](diagrama-secuencia-resumen-cierre.md).
+El sistema ya no cierra las cuentas a ninguna hora: cada persona cierra la suya, aunque sea pasada la medianoche. El cierre del día de las 00:45 (la caja) está en [`diagrama-secuencia-resumen-cierre.md`](diagrama-secuencia-resumen-cierre.md).
 
 ## 4. Corregir o confirmar una hora de salida
 
-Cuando el sistema cierra un turno a las 00:00, no sabe a qué hora se fue de verdad la persona. El dueño lo revisa.
+Cuando el sistema cierra una cuenta olvidada, no sabe a qué hora se fue de verdad la persona: pone el último momento en que usó el sistema. El dueño lo revisa. La salida puede ser pasada la medianoche.
 
 ```mermaid
 sequenceDiagram
@@ -209,7 +209,7 @@ sequenceDiagram
     BD-->>Vista: Turno
 
     alt No se puede
-        Note over Vista: El turno no existe, o la salida es anterior a la entrada,<br/>pasa de las 00:00 de ese día o está en el futuro
+        Note over Vista: El turno no existe, o la salida es anterior a la entrada,<br/>el turno duraría más de 24 horas o está en el futuro
         Vista-->>Pantalla: 400 o 404 con el mensaje
         Pantalla-->>Dueno: Muestra el mensaje
     else Se puede

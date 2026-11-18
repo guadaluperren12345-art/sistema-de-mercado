@@ -1,6 +1,6 @@
 # Diagrama entidad-relación de la base de datos
 
-Las tablas del Sistema de Mercado, sus campos y cómo se relacionan. Está hecho leyendo los modelos reales de Django (`backend/*/models.py`), que son los que crean las tablas en SQL Server. Son **21 tablas** propias, repartidas en 7 aplicaciones.
+Las tablas del Sistema de Mercado, sus campos y cómo se relacionan. Está hecho leyendo los modelos reales de Django (`backend/*/models.py`), que son los que crean las tablas en SQL Server. Son **25 tablas** propias, repartidas en 8 aplicaciones (las 4 de los avisos a los dueños están al final, en «Avisos a los dueños»).
 
 El detalle campo por campo con los tipos de SQL Server de las tablas más viejas está en [`documentacion.md`](documentacion.md), sección 7.
 
@@ -429,7 +429,7 @@ erDiagram
 ```
 
 - El **estado del pago** de una compra (pagado, falta una parte, sin pagar) no es un campo: se calcula comparando `pagado` con `costo_total`.
-- `CIERRE_DIARIO` no tiene claves foráneas a propósito. Guarda los totales del día como quedaron a las 00:00; la plata que entró, la cuenta final y el efectivo esperado se calculan con esos números.
+- `CIERRE_DIARIO` no tiene claves foráneas a propósito. Guarda los totales del día como quedaron a las 00:45; la plata que entró, la cuenta final y el efectivo esperado se calculan con esos números.
 
 ## Quién y cuándo
 
@@ -459,3 +459,61 @@ Casi todas las tablas guardan quién hizo la operación y, si corresponde, en qu
 - **Tablas de historial de solo lectura:** `cambio_usuario`, `cambio_producto`, `cambio_cliente`, `registro_acceso`, `movimiento_stock`, `movimiento_cuenta` y `pago_compra` no se modifican ni se borran desde el sistema.
 - **Únicos con condición:** en `producto`, el número de producto y el código de barras son únicos solo cuando tienen valor. En `categoria`, el nombre es único dentro de su sección.
 - **Tablas que no están acá:** Django crea además algunas tablas propias (permisos, sesiones del panel `/admin/`, registro de migraciones). No forman parte del modelo del negocio.
+
+## Avisos a los dueños (aplicación `notificaciones`)
+
+Agregado el 18/11/2026. Cada noche a las 00:45 el sistema hace la caja del día y le deja un aviso a cada dueño; ese aviso además sale por Telegram y por correo.
+
+```mermaid
+erDiagram
+    USUARIO ||--o{ NOTIFICACION : "recibe"
+    CIERRE_DIARIO ||--o{ NOTIFICACION : "se avisa con"
+    NOTIFICACION ||--o{ ENVIO_NOTIFICACION : "sale por"
+    USUARIO ||--o| VINCULO_TELEGRAM : "vincula"
+    USUARIO ||--o{ CONFIGURACION_NOTIFICACIONES : "actualizó"
+
+    NOTIFICACION {
+        int id PK
+        int usuario_id FK "el dueño que la recibe"
+        bigint cierre_id FK "vacío en los avisos de prueba"
+        string titulo
+        string texto "toda la caja del día"
+        datetime creada_en
+        datetime leida_en "vacío = sin leer"
+    }
+    ENVIO_NOTIFICACION {
+        int id PK
+        int notificacion_id FK
+        string canal "TELEGRAM o EMAIL"
+        string destino "chat o dirección de correo"
+        string estado "PENDIENTE, ENVIADO o FALLIDO"
+        int intentos
+        datetime proximo_intento
+        datetime enviado_en
+        string error "el último error"
+    }
+    VINCULO_TELEGRAM {
+        int id PK
+        int usuario_id FK,UK "un dueño"
+        string codigo "va en el enlace al bot"
+        string chat_id "vacío = todavía no vinculó"
+        string nombre "cómo se llama en Telegram"
+        datetime vinculado_en
+    }
+    CONFIGURACION_NOTIFICACIONES {
+        int id PK "una sola fila"
+        string telegram_token "no se devuelve por la API"
+        string telegram_bot
+        string email_host
+        int email_puerto
+        string email_usuario
+        string email_password "no se devuelve por la API"
+        int actualizado_por_id FK
+        datetime actualizado_en
+    }
+```
+
+- **`NOTIFICACION`** es el aviso dentro del sistema: hay una por dueño y por cierre. No se borra ni se modifica; solo se marca como leída.
+- **`ENVIO_NOTIFICACION`** lleva la cuenta de los envíos hacia afuera. Si no hay internet queda `PENDIENTE` y el planificador lo reintenta.
+- **`VINCULO_TELEGRAM`** guarda el chat de cada dueño; el código cambia cuando se desvincula, para que el enlace viejo no sirva.
+- **`CONFIGURACION_NOTIFICACIONES`** tiene una sola fila con el bot del mercado y la cuenta de correo desde la que se envía.

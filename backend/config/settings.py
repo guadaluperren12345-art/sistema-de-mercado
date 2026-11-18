@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     "clientes",
     "gastos",
     "compras",
+    "notificaciones",
 ]
 
 # Modelo de usuario propio con rol (documentación 7.1)

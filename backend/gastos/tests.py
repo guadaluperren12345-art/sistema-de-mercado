@@ -9,6 +9,8 @@ from decimal import Decimal
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core import dia
+
 from productos.models import Categoria, Producto
 from turnos import servicios as turnos
 from usuarios.models import Rol, Usuario
@@ -67,7 +69,7 @@ class GastosTests(Base):
         self.assertEqual([g["proposito"] for g in r.data["gastos"]], ["Hielo", "Bolsas"])  # lo más nuevo primero
 
     def test_otros_dias_solo_duenos_y_encargados(self):
-        ayer = (timezone.localdate() - timedelta(days=1)).isoformat()
+        ayer = (dia.hoy() - timedelta(days=1)).isoformat()
         self.assertEqual(self.client.get(f"/api/gastos/?fecha={ayer}").status_code, 403)
         self.assertEqual(self.client.get("/api/gastos/?fecha=ayer").status_code, 400)
         self.entrar_como(Rol.ENCARGADO)
@@ -124,7 +126,7 @@ class CierreTests(Base):
         self.client.post(f"/api/gastos/{anulado}/anular/")
 
     def test_resumen_resta_los_gastos(self):
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         r = turnos.resumen(hoy, hoy)
         self.assertEqual((r["gastos"]["cantidad"], r["gastos"]["anulados"], r["gastos"]["total"]), (2, 1, "4000.00"))
         self.assertEqual([g["proposito"] for g in r["gastos"]["lista"]], ["Flete", "Bolsas"])
@@ -133,9 +135,9 @@ class CierreTests(Base):
                                      "resultado": "18500.00", "efectivo": "12000.00"})  # efectivo: 13.000 + 3.000 − 4.000
         self.assertEqual(r["por_dia"][0]["gastos"], "4000.00")
 
-    def test_cierre_de_las_00(self):
-        hoy = timezone.localdate()
-        cierre = turnos.generar_cierre(hoy)
+    def test_cierre_de_las_00_45(self):
+        hoy = dia.hoy()
+        cierre = turnos.generar_cierre(hoy)[0]
         cierre.refresh_from_db()
         self.assertEqual((cierre.gastos_cantidad, cierre.gastos_total), (2, Decimal("4000.00")))
         self.assertEqual((cierre.entro, cierre.resultado_dia, cierre.efectivo_esperado),
@@ -146,7 +148,7 @@ class CierreTests(Base):
 
     def test_los_gastos_pueden_dejar_el_dia_en_negativo(self):
         self.anotar("30000", "arreglo de la heladera")
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         self.assertEqual(turnos.resumen(hoy, hoy)["caja"]["resultado"], "-11500.00")
 
     def test_actividad(self):  # RF-111

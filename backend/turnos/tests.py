@@ -1,14 +1,16 @@
-"""Pruebas de turnos, horas trabajadas, cierre de las 00:00, actividad y resumen.
+"""Pruebas de turnos, horas trabajadas, cierre de las 00:45, actividad y resumen.
 
 Ejecutar con:  docker compose exec backend python manage.py test turnos
 """
 
-from datetime import timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from core import dia
+from notificaciones.models import Notificacion
 from productos.models import Categoria, MovimientoStock, Producto
 from usuarios.models import RegistroAcceso, Rol, Usuario
 
@@ -40,7 +42,7 @@ class Base(APITestCase):
 
     def mover_al_pasado(self, turno, dias=1, hora=14):
         """Deja un turno como si hubiera empezado hace `dias` días a esa hora."""
-        ayer = timezone.localdate() - timedelta(days=dias)
+        ayer = dia.hoy() - timedelta(days=dias)
         inicio = servicios.inicio_del_dia(ayer) + timedelta(hours=hora)
         Turno.objects.filter(pk=turno.pk).update(inicio=inicio, ultima_actividad=inicio + timedelta(hours=3))
         turno.refresh_from_db()
@@ -104,18 +106,39 @@ class TurnoAlEntrarYSalirTests(Base):
         self.assertEqual(turno.tipo_cierre, Turno.ADMINISTRADOR)
 
 
-class CierreDeLas00Tests(Base):
-    def test_turno_olvidado_se_cierra_a_las_00_y_queda_para_revisar(self):  # RF-27
+class DiaDelMercadoTests(Base):
+    def momento(self, *fecha_y_hora):
+        return timezone.make_aware(datetime(*fecha_y_hora))
+
+    def test_el_dia_termina_a_las_00_45(self):  # RN-18
+        viernes, sabado = date(2026, 11, 13), date(2026, 11, 14)
+        self.assertEqual(dia.fecha_local(self.momento(2026, 11, 13, 23, 59)), viernes)
+        self.assertEqual(dia.fecha_local(self.momento(2026, 11, 14, 0, 44)), viernes)  # todavía es viernes
+        self.assertEqual(dia.fecha_local(self.momento(2026, 11, 14, 0, 45)), sabado)
+        self.assertEqual(dia.inicio_del_dia(sabado), self.momento(2026, 11, 14, 0, 45))
+        inicio, fin = servicios.rango_de_fechas(viernes, viernes)
+        self.assertEqual((inicio, fin), (self.momento(2026, 11, 13, 0, 45), self.momento(2026, 11, 14, 0, 45)))
+
+    def test_no_hay_cierre_hasta_las_00_45(self):
+        self.login(Rol.EMPLEADO)
+        turno = Turno.objects.get(usuario=self.empleado)
+        Turno.objects.filter(pk=turno.pk).update(inicio=self.momento(2026, 11, 13, 18, 0))
+        self.assertEqual(servicios.cerrar_dias_pendientes(self.momento(2026, 11, 14, 0, 44)), [])
+        cierres = servicios.cerrar_dias_pendientes(self.momento(2026, 11, 14, 0, 45))
+        self.assertEqual([c.fecha for c in cierres], [date(2026, 11, 13)])
+
+
+class CierreDeLas0045Tests(Base):
+    def test_el_cierre_no_le_cierra_la_cuenta_a_nadie(self):  # RF-59: cada uno cierra la suya
         self.login(Rol.EMPLEADO)
         turno = self.mover_al_pasado(Turno.objects.get(usuario=self.empleado), dias=1, hora=14)
 
         servicios.cerrar_dias_pendientes()
 
         turno.refresh_from_db()
-        self.assertEqual(turno.fin, servicios.inicio_del_dia(timezone.localdate()))  # 00:00 en punto
-        self.assertEqual(turno.tipo_cierre, Turno.SISTEMA)
-        self.assertTrue(turno.para_revisar)
-        self.assertEqual(turno.minutos, 10 * 60)  # de 14:00 a 00:00
+        self.assertTrue(turno.abierto)
+        self.assertFalse(turno.para_revisar)
+        self.assertEqual(CierreDiario.objects.count(), 1)
 
     def test_genera_el_cierre_de_cada_dia_terminado_una_sola_vez(self):
         self.login(Rol.EMPLEADO)
@@ -124,13 +147,12 @@ class CierreDeLas00Tests(Base):
         servicios.cerrar_dias_pendientes()
         servicios.cerrar_dias_pendientes()  # repetirlo no duplica nada
 
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         fechas = list(CierreDiario.objects.order_by("fecha").values_list("fecha", flat=True))
         self.assertEqual(fechas, [hoy - timedelta(days=d) for d in (3, 2, 1)])
         primero = CierreDiario.objects.get(fecha=hoy - timedelta(days=3))
         self.assertEqual(primero.turnos, 1)
-        self.assertEqual(primero.minutos_trabajados, 16 * 60)
-        self.assertEqual(primero.turnos_cerrados_por_sistema, 1)
+        self.assertEqual(primero.turnos_cerrados_por_sistema, 0)
 
     def test_el_dia_de_hoy_no_se_cierra_antes_de_tiempo(self):
         self.login(Rol.EMPLEADO)
@@ -138,18 +160,44 @@ class CierreDeLas00Tests(Base):
         self.assertTrue(Turno.objects.get(usuario=self.empleado).abierto)
         self.assertEqual(CierreDiario.objects.count(), 0)
 
-    def test_sesion_de_ayer_no_sirve_despues_de_las_00(self):
+    def test_el_cierre_les_avisa_a_los_dueños_con_la_caja(self):  # RF-123
+        self.login(Rol.EMPLEADO)
+        self.mover_al_pasado(Turno.objects.get(usuario=self.empleado), dias=1, hora=14)
+        servicios.cerrar_dias_pendientes()
+        servicios.cerrar_dias_pendientes()  # no avisa dos veces
+
+        aviso = Notificacion.objects.get()
+        self.assertEqual(aviso.usuario, self.dueño)
+        self.assertEqual(aviso.cierre, CierreDiario.objects.get())
+        self.assertIn("RESULTADO DEL DÍA", aviso.texto)
+        self.assertIn("Empleado Test todavía no cerró su cuenta", aviso.texto)
+
+    def test_cuenta_olvidada_se_corta_cuando_la_persona_vuelve(self):  # RF-27
         self.entrar_como(Rol.EMPLEADO)
-        self.mover_al_pasado(Turno.objects.get(usuario=self.empleado))
-        # Aunque el planificador no haya pasado, el primer pedido cierra el turno y corta la sesión
+        turno = self.mover_al_pasado(Turno.objects.get(usuario=self.empleado))  # último uso: 3 h después de entrar
         self.assertEqual(self.client.get("/api/auth/yo/").status_code, 401)
-        self.assertFalse(Turno.objects.get(usuario=self.empleado).abierto)
+        turno.refresh_from_db()
+        self.assertEqual(turno.fin, turno.ultima_actividad)  # termina en su último movimiento, no ahora
+        self.assertEqual(turno.tipo_cierre, Turno.SISTEMA)
+        self.assertTrue(turno.para_revisar)
+        self.assertEqual(turno.minutos, 180)
+
+    def test_quien_sigue_trabajando_pasado_el_cierre_no_se_corta(self):
+        self.entrar_como(Rol.EMPLEADO)
+        turno = Turno.objects.get(usuario=self.empleado)
+        ayer = servicios.inicio_del_dia(dia.hoy() - timedelta(days=1)) + timedelta(hours=20)
+        Turno.objects.filter(pk=turno.pk).update(inicio=ayer, ultima_actividad=timezone.now() - timedelta(minutes=5))
+        servicios.cerrar_dias_pendientes()
+        self.assertEqual(self.client.get("/api/auth/yo/").status_code, 200)
+        self.assertTrue(Turno.objects.get(pk=turno.pk).abierto)
 
     def test_al_volver_a_entrar_empieza_un_turno_nuevo(self):
         self.login(Rol.EMPLEADO)
         self.mover_al_pasado(Turno.objects.get(usuario=self.empleado))
-        self.login(Rol.EMPLEADO)  # el login pone al día los cierres
+        self.login(Rol.EMPLEADO)  # el login pone al día los cierres y cierra la cuenta olvidada
         self.assertEqual(Turno.objects.filter(usuario=self.empleado).count(), 2)
+        self.assertEqual(Turno.objects.filter(usuario=self.empleado, fin__isnull=True).count(), 1)
+        self.assertEqual(Turno.objects.filter(usuario=self.empleado, tipo_cierre=Turno.SISTEMA).count(), 1)
         self.assertEqual(CierreDiario.objects.count(), 1)
 
 
@@ -176,8 +224,8 @@ class HorariosSoloParaDueñosTests(Base):
         self.client.post("/api/auth/logout/", {"refresh": datos["refresh"]})
         self.entrar_como(Rol.ADMINISTRADOR)
         r = self.client.get("/api/turnos/")
-        # Si la prueba corre justo antes de las 00:00 el turno pudo empezar "ayer": se aceptan ambos días
-        ayer = (timezone.localdate() - timedelta(days=1)).isoformat()
+        # Si la prueba corre justo antes de las 00:45 el turno pudo empezar "ayer": se aceptan ambos días
+        ayer = (dia.hoy() - timedelta(days=1)).isoformat()
         r = r if r.data else self.client.get(f"/api/turnos/?desde={ayer}&hasta={ayer}")
         self.assertEqual(len(r.data), 1)
         self.assertIn(r.data[0]["minutos"], (90, 91))
@@ -195,6 +243,7 @@ class CorregirTurnoTests(Base):
         self.login(Rol.EMPLEADO)
         self.turno = self.mover_al_pasado(Turno.objects.get(usuario=self.empleado), dias=1, hora=14)
         servicios.cerrar_dias_pendientes()
+        servicios.cerrar_turno_olvidado(self.empleado)  # se olvidó la cuenta abierta: termina en su último uso
         self.turno.refresh_from_db()
         self.entrar_como(Rol.ADMINISTRADOR)
 
@@ -215,18 +264,27 @@ class CorregirTurnoTests(Base):
         self.assertEqual(r.data["corregido_por"], "Administrador Test")
         self.turno.refresh_from_db()
         # Queda guardada la hora que había puesto el sistema
-        self.assertEqual(self.turno.fin_original, servicios.inicio_del_dia(timezone.localdate()))
+        self.assertEqual(self.turno.fin_original, self.turno.inicio + timedelta(hours=3))
         self.assertEqual(self.turno.nota, "Se fue a las 20")
+
+    def test_la_salida_puede_ser_pasada_la_medianoche(self):
+        salida = self.turno.inicio + timedelta(hours=10, minutes=30)  # entró 14:45, se fue 01:15
+        r = self.corregir(fin=salida.isoformat())
+        if salida > timezone.now():  # la prueba corrió de madrugada: esa hora todavía no llegó
+            self.assertEqual(r.status_code, 400)
+        else:
+            self.assertEqual(r.status_code, 200, r.data)
+            self.assertEqual(r.data["minutos"], 630)
 
     def test_confirmar_sin_cambiar_la_hora(self):
         r = self.corregir()
         self.assertEqual(r.status_code, 200)
         self.assertFalse(r.data["para_revisar"])
-        self.assertEqual(r.data["minutos"], 600)
+        self.assertEqual(r.data["minutos"], 180)
 
     def test_horas_imposibles(self):
         self.assertEqual(self.corregir(fin=(self.turno.inicio - timedelta(hours=1)).isoformat()).status_code, 400)
-        self.assertEqual(self.corregir(fin=(self.turno.fin + timedelta(hours=1)).isoformat()).status_code, 400)
+        self.assertEqual(self.corregir(fin=(self.turno.inicio + timedelta(hours=25)).isoformat()).status_code, 400)
         self.assertEqual(self.corregir(fin="no es una hora").status_code, 400)
         self.turno.refresh_from_db()
         self.assertTrue(self.turno.para_revisar)
@@ -307,6 +365,6 @@ class ActividadYResumenTests(Base):
         self.assertEqual(len(r.data["por_dia"]), 1)
 
     def test_resumen_de_la_semana_trae_un_renglon_por_dia(self):
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         r = self.client.get(f"/api/resumen/?desde={hoy - timedelta(days=6)}&hasta={hoy}")
         self.assertEqual(len(r.data["por_dia"]), 7)

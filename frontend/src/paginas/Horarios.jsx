@@ -15,12 +15,14 @@ const horaDeCampo = (iso) => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-// Une el día en que empezó el turno con la hora elegida. "00:00" es la medianoche con la que termina ese día.
+// Une el día en que empezó el turno con la hora elegida. Si esa hora es anterior a la de entrada
+// (entró 18:00, se fue 00:30), la salida fue pasada la medianoche: es del día siguiente.
 function momentoDeSalida(turno, horaElegida) {
   const [h, m] = horaElegida.split(':').map(Number)
-  const d = new Date(turno.inicio)
+  const entrada = new Date(turno.inicio)
+  const d = new Date(entrada)
   d.setHours(h, m, 0, 0)
-  if (h === 0 && m === 0) d.setDate(d.getDate() + 1)
+  if (d <= entrada) d.setDate(d.getDate() + 1)
   return d
 }
 
@@ -119,7 +121,7 @@ export default function Horarios() {
     setError('')
     try {
       const t = await api(`/api/turnos/${turno.id}/corregir/`, { metodo: 'POST', datos: {} })
-      guardado(t, `Se confirmó el horario de ${t.usuario.nombre} hasta las 00:00.`)
+      guardado(t, `Se confirmó el horario de ${t.usuario.nombre} hasta las ${hora(t.fin)}.`)
     } catch (err) {
       setError(err.message)
     }
@@ -143,7 +145,8 @@ export default function Horarios() {
       <main className="contenedor">
         <h1>Horarios del personal</h1>
         <p className="subtitulo">
-          El horario se cuenta solo: desde que cada persona entra con su contraseña hasta que cierra sesión.
+          El horario se cuenta solo: desde que cada persona entra con su contraseña hasta que cierra su cuenta.
+          El sistema no le cierra la cuenta a nadie: cada uno la cierra al irse, aunque sea pasada la medianoche.
         </p>
 
         {aviso && (
@@ -163,7 +166,7 @@ export default function Horarios() {
                 <li key={t.id} className="tarjeta fila-usuario borde-verde">
                   <div className="datos-usuario">
                     <strong>{t.usuario.nombre} <span className={`rol rol-${t.usuario.rol.toLowerCase()}`}>· {t.usuario.rol}</span></strong>
-                    <span>Entró a las {hora(t.inicio)} · lleva <b>{duracion(t.minutos)}</b></span>
+                    <span>Entró {diaCorto(t.inicio)} a las {hora(t.inicio)} · lleva <b>{duracion(t.minutos)}</b></span>
                     <small className="texto-suave">Último movimiento en el sistema: {hora(t.ultima_actividad)}</small>
                   </div>
                   {corrigiendo === `a${t.id}` ? (
@@ -183,7 +186,8 @@ export default function Horarios() {
           <section className="bloque">
             <h2>Para revisar ({paraRevisar.length})</h2>
             <p className="texto-suave">
-              Estas personas no cerraron sesión: el sistema les cerró el turno a las 00:00. Indicá a qué hora se fueron en realidad.
+              Estas personas se olvidaron la cuenta abierta: el sistema la cerró en el último momento en que la usaron.
+              Indicá a qué hora se fueron en realidad.
             </p>
             <ul className="lista-usuarios">
               {paraRevisar.map((t) => (

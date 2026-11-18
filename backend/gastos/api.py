@@ -14,6 +14,7 @@ from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core import dia
 from productos.api import inicio_del_dia
 
 from .models import Gasto
@@ -36,7 +37,7 @@ def puede_anular(usuario, gasto):
         return False
     if ve_todo(usuario):
         return True
-    return gasto.usuario_id == usuario.id and timezone.localtime(gasto.fecha_hora).date() == timezone.localdate()
+    return gasto.usuario_id == usuario.id and dia.fecha_local(gasto.fecha_hora) == dia.hoy()
 
 
 class GastoSerializer(serializers.ModelSerializer):
@@ -83,7 +84,7 @@ class GastosViewSet(mixins.CreateModelMixin, viewsets.GenericViewSet):
     queryset = Gasto.objects.select_related("usuario", "anulado_por")
 
     def list(self, request):
-        hoy = timezone.localdate()
+        hoy = dia.hoy()
         try:
             fecha = date.fromisoformat(request.query_params["fecha"]) if request.query_params.get("fecha") else hoy
         except ValueError:
